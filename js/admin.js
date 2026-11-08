@@ -1,13 +1,13 @@
 // 관리자 페이지
 import {
   r, watch, get, set, update, remove, runTransaction,
-  ensureDefaults, RANKS, RANK_COLORS, gidOf, labelOf, safeStore, escapeHtml
+  ensureDefaults, RANKS, RANK_COLORS, LANE_IDS, LANE_INFO, gidOf, labelOf, safeStore, escapeHtml
 } from "./db.js";
 import { ADMIN_PIN } from "./firebase-config.js";
 
 const $ = (id) => document.getElementById(id);
 const ss = safeStore("sessionStorage");
-let settings = null, stock = null, logs = {}, queue = {}, current = null;
+let settings = null, stock = null, logs = {}, queue = {}, lanes = {};
 let stockTab = "event", logTab = "event", stockDirty = false;
 
 function flash(id, text, err = false) {
@@ -33,7 +33,7 @@ async function start() {
   watch("stock", (v) => { stock = v; if (!stockDirty) renderStock(); });
   watch("logs", (v) => { logs = v || {}; renderLogs(); });
   watch("queue", (v) => { queue = v || {}; renderQueue(); });
-  watch("current", (v) => { current = v; renderQueue(); });
+  watch("lanes", (v) => { lanes = v || {}; renderQueue(); });
 }
 
 // ---------- 설정 ----------
@@ -135,21 +135,27 @@ $("aReset").onclick = async () => {
 
 // ---------- 대기열 ----------
 function renderQueue() {
-  $("nowInfo").innerHTML = current && current.label
-    ? `진행 중: <b>${escapeHtml(current.label)}</b> (${{ control: "조종 중", drop: "뽑는 중", result: "결과 발표" }[current.state] || current.state})`
-    : "진행 중인 게임 없음";
+  const ST = { control: "조종 중", drop: "뽑는 중", result: "결과 발표" };
+  $("nowInfo").innerHTML = LANE_IDS.map((id) => {
+    const g = lanes[id], info = LANE_INFO[id];
+    return `<div class="lane-line"><b style="color:${info.color}">${info.tag}</b> ` +
+      (g && g.label ? `<b>${escapeHtml(g.label)}</b> (${ST[g.state] || g.state}) <button class="btn danger" data-skip="${id}">취소</button>` : `<span style="color:var(--muted)">비어 있음</span>`) +
+      `</div>`;
+  }).join("");
+  $("nowInfo").querySelectorAll("[data-skip]").forEach((b) => b.onclick = () => skipLane(b.dataset.skip));
   const list = Object.entries(queue).sort((a, b) => (a[1].joinedAt || 0) - (b[1].joinedAt || 0));
   $("qAdmin").innerHTML = list.length
     ? list.map(([k, v]) => `<li>${escapeHtml(v.label)} <small style="color:var(--muted)">${v.mode === "event" ? "본 행사" : "연습"}</small><button class="btn danger" data-k="${escapeHtml(k)}">빼기</button></li>`).join("")
     : `<li style="list-style:none;color:var(--muted);margin-left:-1.4em">대기열이 비어 있어요</li>`;
   $("qAdmin").querySelectorAll("button").forEach((b) => b.onclick = () => remove(r("queue/" + b.dataset.k)));
 }
-$("skipNow").onclick = async () => {
-  if (!current) return;
-  if (current.state !== "control") { alert("이미 뽑는 중이라 취소할 수 없어요. 결과가 나올 때까지 기다려 주세요."); return; }
-  if (!confirm("현재 게임을 취소할까요? (기회는 차감되지 않아요)")) return;
-  await update(r(), { current: null, control: null });
-};
+async function skipLane(id) {
+  const g = lanes[id];
+  if (!g) return;
+  if (g.state !== "control") { alert("이미 뽑는 중이라 취소할 수 없어요. 결과가 나올 때까지 기다려 주세요."); return; }
+  if (!confirm(`${LANE_INFO[id].tag} ${g.label}의 게임을 취소할까요? (기회는 차감되지 않아요)`)) return;
+  await update(r(), { ["lanes/" + id]: null, ["control/" + id]: null });
+}
 $("clearQueue").onclick = async () => { if (confirm("대기열을 모두 비울까요?")) await remove(r("queue")); };
 
 // ---------- 기록 ----------
@@ -195,7 +201,7 @@ $("clearLogs").onclick = async () => {
 $("fullReset").onclick = async () => {
   if ($("resetConfirm").value.trim() !== "초기화") { flash("resetMsg", "'초기화'라고 입력해 주세요", true); return; }
   const ev = (await get(r("stock/event"))).val() || {};
-  const ups = { attempts: null, "logs/event": null, queue: null, current: null, control: null };
+  const ups = { attempts: null, "logs/event": null, queue: null, lanes: null, control: null };
   for (const k of RANKS) if (ev[k]) ups[`stock/event/${k}/left`] = ev[k].total || 0;
   await update(r(), ups);
   $("resetConfirm").value = "";

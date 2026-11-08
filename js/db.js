@@ -21,6 +21,11 @@ export function watch(path, cb) {
 }
 
 export const RANKS = ["r1", "r2", "r3", "r4", "r5"];
+export const LANE_IDS = ["L", "R"];
+export const LANE_INFO = {
+  L: { tag: "1P", side: "왼쪽", color: "#22e4ff" },
+  R: { tag: "2P", side: "오른쪽", color: "#ff3ea5" },
+};
 export const RANK_COLORS = {
   1: "#FFD23F", 2: "#FF3EA5", 3: "#22E4FF", 4: "#7CFF6B", 5: "#9B8CFF", 0: "#9aa0b4"
 };

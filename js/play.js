@@ -1,7 +1,7 @@
 // 폰 조종기
 import {
   r, watch, get, set, update, onDisconnect, now,
-  RANK_COLORS, depletes, leftTotal, gidOf, labelOf, LOSE_LINES, safeStore, escapeHtml
+  RANK_COLORS, LANE_IDS, LANE_INFO, depletes, leftTotal, gidOf, labelOf, LOSE_LINES, safeStore, escapeHtml
 } from "./db.js";
 
 const $ = (id) => document.getElementById(id);
@@ -10,10 +10,12 @@ const CLIENT = ls.getItem("clientId") || Math.random().toString(36).slice(2, 12)
 ls.setItem("clientId", CLIENT);
 
 let settings = null, current = null, queue = {}, stock = null, connected = false;
+let lanes = {}, myLane = null;   // current = 내가 들어가 있는 구역의 게임
 let ui = "loading";
 let me = null;            // { key, label, gid, mode, joinedAt }
 let lastResult = null;    // { rank, prize, at }
 let missingTimer = null, timerInt = null, clockInt = null, grabbed = false;
+let turnSeen = 0;          // 이미 처리한 차례(startedAt) — 같은 기기로 여러 번 할 때 구분
 
 try { me = JSON.parse(ss.getItem("me") || "null"); } catch (e) { me = null; }
 const saveMe = () => ss.setItem("me", JSON.stringify(me));
@@ -80,7 +82,7 @@ async function join() {
       ls.setItem("nick", nick);
       info = { key: "P" + CLIENT, label: nick, gid: null, mode: "practice" };
     }
-    if ((queue && queue[info.key]) || (current && current.qkey === info.key)) {
+    if ((queue && queue[info.key]) || LANE_IDS.some((id) => lanes[id] && lanes[id].qkey === info.key)) {
       setMsg(settings.mode === "event" ? "이 학번은 이미 대기 중이에요" : "이미 대기 중이에요");
       return;
     }
@@ -117,7 +119,7 @@ function renderWait() {
     .filter(([, v]) => v && v.mode === me.mode)
     .sort((a, b) => (a[1].joinedAt || 0) - (b[1].joinedAt || 0));
   const idx = list.findIndex(([k]) => k === me.key);
-  const ahead = (idx < 0 ? list.length : idx) + (current && current.qkey !== me.key ? 1 : 0);
+  const ahead = idx < 0 ? list.length : idx;
   const pos = $("waitPos");
   pos.textContent = ahead;
   pos.classList.toggle("next", ahead === 0);
@@ -129,7 +131,7 @@ let dirNow = 0;
 function sendDir(d) {
   if (ui !== "turn" || grabbed || d === dirNow) return;
   dirNow = d;
-  update(r("control"), { dir: d }).catch(console.error);
+  update(r("control/" + myLane), { dir: d }).catch(console.error);
 }
 function bindHold(el, d) {
   const on = (e) => { e.preventDefault(); el.classList.add("down"); try { el.setPointerCapture(e.pointerId); } catch (_) {} sendDir(d); navigator.vibrate?.(15); };
@@ -148,12 +150,17 @@ $("btnGrab").addEventListener("pointerdown", (e) => {
   grabbed = true; dirNow = 0;
   $("btnGrab").disabled = true;
   navigator.vibrate?.([40, 30, 80]);
-  update(r("control"), { dir: 0, grab: now() }).catch(console.error);
+  update(r("control/" + myLane), { dir: 0, grab: now() }).catch(console.error);
 });
 
 function startTurnUI() {
   grabbed = false; dirNow = 0;
   $("btnGrab").disabled = false;
+  const info = LANE_INFO[myLane] || LANE_INFO.L;
+  const lt = $("laneTag");
+  lt.textContent = `${info.tag} · ${info.side} 집게`;
+  lt.style.color = info.color; lt.style.borderColor = info.color;
+  document.querySelector("#v-turn").style.setProperty("--lane", info.color);
   navigator.vibrate?.([200, 100, 200, 100, 300]);
   const tick = () => {
     if (!current || !current.endsAt) return;
@@ -218,7 +225,7 @@ function sync() {
   const mine = me && current && current.qkey === me.key;
   if (mine) {
     clearTimeout(missingTimer); missingTimer = null;
-    if (current.state === "control" && ui !== "turn" && !grabbed) show("turn");
+    if (current.state === "control" && current.startedAt !== turnSeen) { turnSeen = current.startedAt; show("turn"); }
     else if (current.state === "drop" && ui !== "drop") show("drop");
     else if (current.state === "result" && ui !== "result" && current.rank !== undefined) {
       showResult({ rank: current.rank, prize: current.prize, at: current.at });
@@ -254,7 +261,12 @@ function sync() {
 }
 
 watch("settings", (v) => { settings = v; sync(); });
-watch("current", (v) => { current = v; sync(); });
+watch("lanes", (v) => {
+  lanes = v || {};
+  myLane = me ? LANE_IDS.find((id) => lanes[id] && lanes[id].qkey === me.key) || null : null;
+  current = myLane ? lanes[myLane] : null;
+  sync();
+});
 watch("queue", (v) => { queue = v || {}; sync(); });
 watch("stock", (v) => { stock = v; sync(); });
 watch(".info/connected", (v) => {

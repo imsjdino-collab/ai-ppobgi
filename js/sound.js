@@ -79,6 +79,14 @@ export const Sound = {
     let t = 0, gap = 0.09;
     while (t < sec) { noise(0.05, { freq: 2500, vol: 0.12 + (t / sec) * 0.2, at: t }); t += gap; gap = Math.max(0.03, gap * 0.95); }
   },
+  rattle(sec) {
+    if (!ctx) return;
+    for (let t = 0; t < sec; t += 0.045 + Math.random() * 0.04) {
+      noise(0.04, { freq: 1500 + Math.random() * 2500, vol: 0.08 + Math.random() * 0.12, at: t });
+      if (Math.random() < 0.35) tone(600 + Math.random() * 900, 0.05, { type: "triangle", vol: 0.05, at: t });
+    }
+    tone(90, sec, { type: "sawtooth", vol: 0.05 });
+  },
   crack() { noise(0.25, { freq: 3000, vol: 0.5 }); tone(1200, 0.2, { type: "square", to: 300, vol: 0.1 }); },
 
   result(rank) {

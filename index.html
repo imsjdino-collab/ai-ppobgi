@@ -27,6 +27,7 @@
           <li><b>QR</b>을 찍어요</li>
           <li id="howStep2">학번을 입력해요</li>
           <li>차례가 오면 <b id="howSec">10</b>초 안에<br><b class="neon-gold">뽑기!</b></li>
+          <li>두 명이 동시에 도전해요<br><span style="color:#22e4ff">1P 왼쪽</span> · <span style="color:#ff3ea5">2P 오른쪽</span></li>
         </ol>
       </div>
       <div class="qr card">
@@ -46,8 +47,8 @@
     <aside class="right">
       <div class="now card">
         <div class="card-title neon-pink">NOW PLAYING</div>
-        <div id="nowName" class="now-name">대기 중...</div>
-        <div id="timer" class="timer"></div>
+        <div class="lane-row"><span class="lane-tag" id="tagL">1P</span><span class="lane-nm" id="nmL"></span><span class="lane-tm" id="tmL"></span></div>
+        <div class="lane-row"><span class="lane-tag" id="tagR">2P</span><span class="lane-nm" id="nmR"></span><span class="lane-tm" id="tmR"></span></div>
       </div>
       <div class="queue card">
         <div class="card-title neon-cyan">NEXT <span id="qCount" class="q-count"></span></div>
@@ -57,14 +58,23 @@
   </main>
 </div>
 
-<!-- 결과 공개 -->
-<div id="reveal" class="reveal hidden">
-  <canvas id="confetti"></canvas>
+<!-- 결과 공개 (왼쪽 1P / 오른쪽 2P) -->
+<div id="revealL" class="reveal hidden">
+  <canvas></canvas>
   <div class="reveal-inner">
-    <div id="revealWho" class="reveal-who"></div>
-    <div class="big-capsule" id="bigCap"><div class="cap-top"></div><div class="cap-bot"></div></div>
-    <div id="revealRank" class="reveal-rank"></div>
-    <div id="revealPrize" class="reveal-prize"></div>
+    <div class="reveal-who"></div>
+    <div class="big-capsule"><div class="cap-top"></div><div class="cap-bot"></div></div>
+    <div class="reveal-rank"></div>
+    <div class="reveal-prize"></div>
+  </div>
+</div>
+<div id="revealR" class="reveal hidden">
+  <canvas></canvas>
+  <div class="reveal-inner">
+    <div class="reveal-who"></div>
+    <div class="big-capsule"><div class="cap-top"></div><div class="cap-bot"></div></div>
+    <div class="reveal-rank"></div>
+    <div class="reveal-prize"></div>
   </div>
 </div>
 

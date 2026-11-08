@@ -11,4 +11,4 @@ export const firebaseConfig = {
 };
 
 // 관리자 페이지 비밀번호 — 원하는 숫자로 바꿔서 쓰세요
-export const ADMIN_PIN = "4209";
+export const ADMIN_PIN = "2026";

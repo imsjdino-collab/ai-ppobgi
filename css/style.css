@@ -1,5 +1,4 @@
 @import url("https://cdn.jsdelivr.net/npm/galmuri/dist/galmuri.css");
-@import url("https://fonts.googleapis.com/css2?family=Do+Hyeon&display=swap");
 
 :root {
   --bg: #07060f;
@@ -14,8 +13,8 @@
   --green: #7cff6b;
   --violet: #9b8cff;
   --red: #ff4d5e;
-  --pixel: "Galmuri11", "Galmuri9", "Do Hyeon", system-ui, sans-serif;
-  --display: "Do Hyeon", "Galmuri11", system-ui, sans-serif;
+  --pixel: "Galmuri11", "Galmuri9", system-ui, sans-serif;
+  --display: "Galmuri11", "Galmuri14", system-ui, sans-serif;
 }
 
 * { box-sizing: border-box; }

@@ -1,10 +1,10 @@
 body { background: radial-gradient(ellipse at 50% -10%, rgba(34,228,255,.12), transparent 50%), var(--bg); min-height: 100vh; }
 .hidden { display: none !important; }
 .login { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 16px; }
-.login .logo { font-family: var(--display); font-size: 42px; }
+.login .logo { font-family: var(--display); font-weight: 700; font-size: 42px; }
 .adm { max-width: 980px; margin: 0 auto; padding: 20px 16px 60px; }
 .ah { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; }
-.ah .logo { font-family: var(--display); font-size: 30px; }
+.ah .logo { font-family: var(--display); font-weight: 700; font-size: 30px; }
 .btn.small { font-size: 14px; padding: 8px 12px; text-decoration: none; }
 .box { background: var(--panel); border: 2px solid var(--line); border-radius: 16px; padding: 18px; margin-bottom: 16px; }
 .box h2 { margin: 0 0 14px; font-size: 18px; color: var(--cyan); font-weight: 400; }
@@ -15,7 +15,7 @@ body { background: radial-gradient(ellipse at 50% -10%, rgba(34,228,255,.12), tr
 .tg input { width: 18px; height: 18px; accent-color: var(--cyan); }
 
 .mode-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.mode-btn { font-family: var(--display); font-size: 24px; color: var(--muted); background: #0e0a20; border: 2px solid var(--line); border-radius: 14px; padding: 16px; cursor: pointer; display: flex; flex-direction: column; gap: 4px; }
+.mode-btn { font-family: var(--display); font-weight: 700; font-size: 24px; color: var(--muted); background: #0e0a20; border: 2px solid var(--line); border-radius: 14px; padding: 16px; cursor: pointer; display: flex; flex-direction: column; gap: 4px; }
 .mode-btn small { font-family: var(--pixel); font-size: 12px; }
 .mode-btn.on[data-mode="practice"] { color: var(--green); border-color: var(--green); box-shadow: 0 0 16px rgba(124,255,107,.3); }
 .mode-btn.on[data-mode="event"] { color: var(--gold); border-color: var(--gold); box-shadow: 0 0 16px rgba(255,210,63,.35); }
@@ -42,3 +42,5 @@ body { background: radial-gradient(ellipse at 50% -10%, rgba(34,228,255,.12), tr
 .danger-zone h2 { color: #ff8b96; }
 .danger-zone p { color: var(--muted); font-size: 14px; margin: 0; line-height: 1.6; }
 @media (max-width: 600px) { .mode-switch { grid-template-columns: 1fr; } .tbl { font-size: 12px; } }
+.lane-line { padding: 6px 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.lane-line .btn { font-size: 12px; padding: 3px 10px; }
