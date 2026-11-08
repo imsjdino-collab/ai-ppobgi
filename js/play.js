@@ -225,6 +225,7 @@ function sync() {
   const mine = me && current && current.qkey === me.key;
   if (mine) {
     clearTimeout(missingTimer); missingTimer = null;
+    if (current.capColor) document.documentElement.style.setProperty("--capc", current.capColor);
     if (current.state === "control" && current.startedAt !== turnSeen) { turnSeen = current.startedAt; show("turn"); }
     else if (current.state === "drop" && ui !== "drop") show("drop");
     else if (current.state === "result" && ui !== "result" && current.rank !== undefined) {

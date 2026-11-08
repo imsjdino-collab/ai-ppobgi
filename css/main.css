@@ -138,3 +138,5 @@ body::before {
 .lane-tm { font-weight: 700; font-size: 6vh; line-height: 1; color: var(--cyan); text-shadow: 0 0 12px var(--cyan); min-width: 2ch; text-align: right; }
 .lane-tm.warn { color: var(--red); text-shadow: 0 0 16px var(--red); animation: blink .5s steps(2) infinite; }
 .lane-tm.small { font-size: 2.2vh; color: var(--gold); text-shadow: 0 0 10px var(--gold); animation: none; }
+.admin-link { position: fixed; left: .6vw; top: .6vh; z-index: 110; width: 3.4vh; height: 3.4vh; display: flex; align-items: center; justify-content: center; border-radius: 50%; color: var(--muted); font-size: 1.8vh; text-decoration: none; opacity: .18; transition: opacity .2s; }
+.admin-link:hover { opacity: .9; background: var(--panel); }
