@@ -71,7 +71,7 @@ body {
 
 .dots { font-family: var(--display); font-weight: 700; font-size: 44px; animation: blink .6s steps(2) infinite; }
 .mini-cap { width: 90px; height: 90px; margin-top: 10px; animation: shake .12s infinite; }
-.mini-cap div { width: 100%; height: 100%; border-radius: 50%; background: linear-gradient(var(--pink) 0 50%, #ddd8ff 50%); box-shadow: 0 0 24px var(--pink); }
+.mini-cap div { width: 100%; height: 100%; border-radius: 50%; background: linear-gradient(var(--capc, var(--pink)) 0 50%, #ddd8ff 50%); box-shadow: 0 0 24px var(--capc, var(--pink)); }
 @keyframes shake { 0% { transform: rotate(-8deg); } 50% { transform: rotate(8deg); } 100% { transform: rotate(-8deg); } }
 
 /* 결과 */
@@ -102,3 +102,4 @@ body {
 #v-turn .arrow { color: var(--lane, var(--cyan)); border-color: var(--lane, var(--cyan)); }
 #v-turn .arrow { box-shadow: 0 6px 0 color-mix(in srgb, var(--lane, #22e4ff) 45%, #000), 0 0 20px color-mix(in srgb, var(--lane, #22e4ff) 30%, transparent); background: color-mix(in srgb, var(--lane, #22e4ff) 10%, transparent); }
 #v-turn .arrow.down { background: color-mix(in srgb, var(--lane, #22e4ff) 30%, transparent); }
+.res-cap { width: 54px; height: 54px; border-radius: 50%; background: linear-gradient(var(--capc, var(--pink)) 0 50%, #ddd8ff 50%); box-shadow: 0 0 18px var(--capc, var(--pink)); }
