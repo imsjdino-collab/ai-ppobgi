@@ -23,9 +23,7 @@ const CH = 0.12;                         // 양쪽 출구 폭(유리 폭 대비)
 const PILE_X0 = CH + 0.02, PILE_X1 = 1 - CH - 0.02;
 const CAP_COLORS = ["#ff3ea5", "#22e4ff", "#ffd23f", "#7cff6b", "#9b8cff", "#ff8a3d"];
 const capR = () => 0.038;                  // 유리 폭 대비 반지름
-const ASPECT = 0.82;                      // 기계 유리창 세로/가로 비율(고정)
-const aspect = () => ASPECT;
-const CAP_COUNT = 56;
+const aspect = () => G.h / G.w;
 const HEAD_OFF = 0.05 + 0.035;             // 레일+몸통 높이(유리 높이 비율)
 const capOff = () => (capR() * 1.65) / aspect();
 
@@ -36,8 +34,8 @@ function makeLane(id) {
     id, ...info,
     chuteX: left ? CH / 2 : 1 - CH / 2,
     home: left ? 0.32 : 0.68,
-    min: () => PILE_X0 + capR(),
-    max: () => PILE_X1 - capR(),
+    min: () => (left ? PILE_X0 + capR() : 0.5 + capR() * 1.2),
+    max: () => (left ? 0.5 - capR() * 1.2 : PILE_X1 - capR()),
     claw: { x: left ? 0.32 : 0.68, y: 0, open: 0.25, carry: null, sway: 0 },
     phase: "idle",        // idle | control | drop | reveal
     cur: null, dir: 0, lastBeep: -1, starting: false, falling: null,
@@ -51,55 +49,28 @@ function resize() {
   const rect = cv.getBoundingClientRect();
   W = rect.width; H = rect.height;
   cv.width = W * DPR; cv.height = H * DPR;
-  // 기계는 항상 같은 비율(가로 1 : 세로 ASPECT)로 그리고, 남는 공간은 가운데 정렬
-  const sc = Math.min((W * 0.97) / 1, (H * 0.95) / ASPECT);
-  G.w = sc; G.h = sc * ASPECT;
-  G.x0 = (W - G.w) / 2; G.y0 = Math.max(0, H - G.h - H * 0.025);
-}
-
-const randX = () => PILE_X0 + capR() + Math.random() * (PILE_X1 - PILE_X0 - 2 * capR());
-
-/**
- * movers를 순서대로 위에서 떨어뜨려 쌓을 자리를 계산 (tx, ty에 저장).
- * fixed는 움직이지 않는 캡슐. 좌표는 x(유리 폭 비율), y(유리 높이 비율).
- */
-function settle(movers, fixed) {
-  const R = capR(), floorY = ASPECT - R;           // 세로는 폭 단위로 바꿔서 계산
-  const lo = PILE_X0 + R, hi = PILE_X1 - R;
-  const placed = fixed.map((c) => ({ X: c.x, Y: c.y * ASPECT }));
-  const rest = (X) => {
-    let Y = floorY, s = null;
-    for (const p of placed) {
-      const dx = Math.abs(X - p.X);
-      if (dx < 2 * R) { const cand = p.Y - Math.sqrt(4 * R * R - dx * dx); if (cand < Y) { Y = cand; s = p; } }
-    }
-    return [Y, s];
-  };
-  for (const c of movers) {
-    let X = Math.max(lo, Math.min(hi, c.tx ?? c.x));
-    let [Y, s] = rest(X);
-    // 다른 캡슐 꼭대기에 위태롭게 얹히면 옆으로 굴러 내려가게
-    for (let i = 0; i < 14 && s; i++) {
-      const d = Math.sign(X - s.X) || (Math.random() < 0.5 ? -1 : 1);
-      const X2 = Math.max(lo, Math.min(hi, X + d * R * 0.3));
-      if (X2 === X) break;
-      const [Y2, s2] = rest(X2);
-      if (Y2 > Y + 1e-5) { X = X2; Y = Y2; s = s2; } else break;
-    }
-    c.tx = X; c.ty = Y / ASPECT;
-    placed.push({ X, Y });
-  }
+  G.x0 = W * 0.02; G.y0 = H * 0.04; G.w = W * 0.96; G.h = H * 0.92;
 }
 
 function buildPile() {
-  caps = Array.from({ length: CAP_COUNT }, () => ({
-    x: randX(), y: 0, tx: randX(),
-    c: CAP_COLORS[(Math.random() * CAP_COLORS.length) | 0],
-    rot: Math.random() * Math.PI * 2,
-    hidden: false, locked: false,
-  }));
-  settle(caps, []);
-  for (const c of caps) { c.x = c.tx; c.y = c.ty; }
+  caps = [];
+  const R = capR();
+  const rowH = (R * 2 * 0.86) / aspect();
+  for (let row = 0; row < 6; row++) {
+    const off = row % 2 ? R : 0;
+    for (let x = PILE_X0 + R + off; x < PILE_X1 - R; x += R * 2.02) {
+      const hump = 0.5 + 0.5 * Math.sin(x * 11 + 0.4);
+      if (row >= 3 && Math.random() > 0.35 + hump * 0.5) continue;
+      if (row >= 5 && Math.random() > 0.4) continue;
+      caps.push({
+        x: x + (Math.random() - 0.5) * R * 0.3,
+        y: 1 - (R / aspect()) - row * rowH - Math.random() * 0.004,
+        c: CAP_COLORS[(Math.random() * CAP_COLORS.length) | 0],
+        rot: Math.random() * Math.PI * 2,
+        hidden: false, locked: false,
+      });
+    }
+  }
 }
 
 // ---------- 그리기 ----------
@@ -187,6 +158,12 @@ function draw(t) {
   bg.addColorStop(0, "rgba(34,228,255,0.05)"); bg.addColorStop(1, "rgba(255,62,165,0.10)");
   cx.fillStyle = bg; cx.fillRect(x0, y0, w, h);
 
+  // 가운데 구역 표시
+  cx.save();
+  cx.setLineDash([8, 10]); cx.strokeStyle = "rgba(255,210,63,0.35)"; cx.lineWidth = 2;
+  cx.beginPath(); cx.moveTo(px(0.5), y0 + h * 0.05); cx.lineTo(px(0.5), y0 + h * 0.42); cx.stroke();
+  cx.restore();
+
   for (const id of LANE_IDS) drawChute(lanes[id], t);
 
   // 털기
@@ -217,19 +194,18 @@ function draw(t) {
 
   for (const id of LANE_IDS) drawClaw(lanes[id]);
 
-  // 조종 중인 집게 아래에 이름 표시
-  cx.textAlign = "center";
+  // 각 구역 위에 이름 / 안내
   for (const id of LANE_IDS) {
-    const ln = lanes[id];
-    if (ln.cur && ln.phase === "control") {
-      cx.fillStyle = ln.color; cx.font = `bold ${Math.max(13, h * 0.04)}px ${FONT}`;
-      cx.fillText(ln.cur.label, px(ln.claw.x), y0 + h * (0.035 + 0.05 + ln.claw.y) + R * 3.4);
+    const ln = lanes[id], mid = id === "L" ? (PILE_X0 + 0.5) / 2 : (0.5 + PILE_X1) / 2;
+    cx.textAlign = "center";
+    if (ln.cur && ln.phase !== "idle") {
+      cx.fillStyle = ln.color; cx.font = `bold ${Math.max(14, h * 0.045)}px ${FONT}`;
+      cx.fillText(`${ln.tag} ${ln.cur.label}`, px(mid), y0 + h * 0.3);
+    } else if (started && isHost) {
+      cx.fillStyle = `rgba(242,238,255,${0.45 + 0.35 * Math.sin(t / 400 + (id === "L" ? 0 : 1.5))})`;
+      cx.font = `${Math.max(13, h * 0.04)}px ${FONT}`;
+      cx.fillText(`${ln.tag} 도전자 기다리는 중`, px(mid), y0 + h * 0.3);
     }
-  }
-  if (started && isHost && LANE_IDS.every((id) => lanes[id].phase === "idle")) {
-    cx.fillStyle = `rgba(242,238,255,${0.5 + 0.35 * Math.sin(t / 400)})`;
-    cx.font = `bold ${Math.max(14, h * 0.05)}px ${FONT}`;
-    cx.fillText("QR을 찍고 도전하세요!", px(0.5), y0 + h * 0.36);
   }
 
   cx.save();
@@ -461,14 +437,12 @@ async function startDrop(ln) {
     }
   }
   if (target) target.locked = true;
-  const capColor = target ? target.c : CAP_COLORS[(Math.random() * CAP_COLORS.length) | 0];
-  update(r("lanes/" + ln.id), { capColor }).catch(console.error);
   Sound.open(); await tween(c, "open", 1, 250);
   if (target) await tween(c, "x", Math.max(ln.min(), Math.min(ln.max(), target.x)), 200);
   const downY = target ? Math.max(0.05, target.y - HEAD_OFF - capOff()) : 0.6;
   Sound.drop(); await tween(c, "y", downY, 1300, (k) => k * (2 - k));
   Sound.clunk(); await tween(c, "open", 0.05, 300);
-  if (target) { target.hidden = true; target.locked = false; c.carry = target; settleAfterGrab(); }
+  if (target) { target.hidden = true; target.locked = false; c.carry = target; }
   await wait(250);
   Sound.rise(); await tween(c, "y", 0, 1100);
   await tween(c, "x", ln.chuteX, 900, easeIO);
@@ -485,11 +459,11 @@ async function startDrop(ln) {
   const res = await prizeP;
   await commitResult(game, res);
   ln.phase = "reveal"; renderLane(ln);
-  await reveal(ln, game, res, capColor);
+  await reveal(ln, game, res);
 
   // 정리 → 털고 섞기
   try { await update(r(), { ["lanes/" + ln.id]: null, ["control/" + ln.id]: null }); } catch (e) { console.error(e); }
-  if (target) { target.hidden = false; target.c = CAP_COLORS[(Math.random() * CAP_COLORS.length) | 0]; target.x = randX(); target.y = -0.15; }
+  if (target) { target.hidden = false; target.c = CAP_COLORS[(Math.random() * CAP_COLORS.length) | 0]; target.y = -0.15; }
   c.open = 0.25;
   tween(c, "x", ln.home, 600);
   ln.phase = "shuffle"; renderLane(ln);
@@ -531,12 +505,14 @@ function shakeAndShuffle() {
     m.classList.remove("rattle"); void m.offsetWidth; m.classList.add("rattle");
     Sound.rattle(1.2);
     const movers = caps.filter((cp) => !cp.hidden && !cp.locked);
-    const fixed = caps.filter((cp) => !cp.hidden && cp.locked);
-    for (let i = movers.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [movers[i], movers[j]] = [movers[j], movers[i]]; }
-    movers.forEach((cp) => { cp.tx = randX(); });
-    settle(movers, fixed);
-    movers.forEach((cp) => {
+    const spots = movers.map((cp) => ({ x: cp.x, y: cp.y < 0 ? null : cp.y }));
+    // 위에서 돌아오는 캡슐의 자리는 원래 자리(y<0이면 마지막 줄 위로)
+    const filled = spots.filter((s) => s.y !== null);
+    for (const s of spots) if (s.y === null) { const f = filled[(Math.random() * filled.length) | 0]; s.y = f ? f.y - 0.06 : 0.7; }
+    for (let i = spots.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [spots[i], spots[j]] = [spots[j], spots[i]]; }
+    movers.forEach((cp, i) => {
       cp.sx = cp.x; cp.sy = cp.y;
+      cp.tx = spots[i].x; cp.ty = spots[i].y;
       cp.lift = 0.08 + Math.random() * 0.25;
       cp.delay = Math.random() * 0.3;
       cp.spin = (Math.random() - 0.5) * 8;
@@ -547,25 +523,6 @@ function shakeAndShuffle() {
     shuf = null;
     m.classList.remove("rattle");
   };
-  return chain(run);
-}
-
-/** 캡슐 하나가 빠진 뒤 위에 있던 캡슐들이 살짝 내려앉기 */
-function settleAfterGrab() {
-  return chain(async () => {
-    const movers = caps.filter((cp) => !cp.hidden && !cp.locked).sort((a, b) => b.y - a.y);
-    const fixed = caps.filter((cp) => !cp.hidden && cp.locked);
-    movers.forEach((cp) => { cp.tx = cp.x; });
-    settle(movers, fixed);
-    movers.forEach((cp) => { cp.sx = cp.x; cp.sy = cp.y; cp.lift = 0; cp.delay = 0; cp.spin = 0; });
-    shuf = { t0: performance.now(), ms: 350 };
-    await wait(380);
-    movers.forEach((cp) => { cp.x = cp.tx; cp.y = cp.ty; delete cp.sx; });
-    shuf = null;
-  });
-}
-
-function chain(run) {
   const prev = shufP || Promise.resolve();
   const p = prev.then(run);
   shufP = p;
@@ -574,13 +531,13 @@ function chain(run) {
 }
 
 // ---------- 결과 공개 연출 (구역별 반쪽 화면) ----------
-async function reveal(ln, game, res, capColor) {
+async function reveal(ln, game, res) {
   const ov = $("reveal" + ln.id), cap = ov.querySelector(".big-capsule");
   const color = RANK_COLORS[res.rank] || "#9aa0b4";
   ov.className = "reveal side-" + ln.id;
   ov.style.setProperty("--lane", ln.color);
   cap.className = "big-capsule";
-  cap.style.setProperty("--capc", capColor);
+  cap.style.setProperty("--capc", CAP_COLORS[(Math.random() * CAP_COLORS.length) | 0]);
   ov.querySelector(".reveal-who").innerHTML = `<span style="color:${ln.color}">${ln.tag}</span> ${escapeHtml(game.label)}`;
   const rk = ov.querySelector(".reveal-rank"), pz = ov.querySelector(".reveal-prize");
   if (res.rank === 0) { rk.textContent = "SOLD OUT"; pz.textContent = "캡슐이 모두 소진되었어요"; }
@@ -663,7 +620,10 @@ function makeQR() {
 // ---------- 시작 ----------
 async function boot() {
   resize(); buildPile();
-  addEventListener("resize", resize);
+  addEventListener("resize", () => {
+    resize();
+    if (LANE_IDS.every((id) => lanes[id].phase === "idle")) buildPile();
+  });
   makeQR();
   for (const id of LANE_IDS) { $("tag" + id).style.color = LANE_INFO[id].color; renderLane(lanes[id]); }
   requestAnimationFrame(loop);
@@ -685,7 +645,7 @@ async function boot() {
     $("startOv").classList.add("hidden");
     started = true;
     if (musicOn) Sound.bgm(true);
-    setTimeout(resize, 300);
+    setTimeout(() => { resize(); buildPile(); }, 300);
     const h = host;
     if (h && h.id !== HOST_ID && now() - (h.at || 0) < 8000) $("hostWarn").classList.remove("hidden");
     else claimHost();

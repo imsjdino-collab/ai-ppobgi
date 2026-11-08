@@ -1,8 +1,4 @@
 // 효과음: 파일 없이 브라우저에서 직접 합성 (Web Audio)
-// 전체 음량(1 = 기본). 더 크게 하려면 숫자를 올리세요
-const VOLUME = 1.6;
-const MUSIC = 1.6;  // 배경음 크기
-
 let ctx = null, master = null, sfx = null, music = null, bgmTimer = null, step = 0;
 
 function init() {
@@ -10,14 +6,9 @@ function init() {
   const AC = window.AudioContext || window.webkitAudioContext;
   if (!AC) return;
   ctx = new AC();
-  // 소리를 크게 키우되, 찢어지지 않도록 압축기를 거쳐서 내보냄
-  const comp = ctx.createDynamicsCompressor();
-  comp.threshold.value = -14; comp.knee.value = 10; comp.ratio.value = 6;
-  comp.attack.value = 0.003; comp.release.value = 0.2;
-  comp.connect(ctx.destination);
-  master = ctx.createGain(); master.gain.value = VOLUME; master.connect(comp);
-  sfx = ctx.createGain(); sfx.gain.value = 4; sfx.connect(master);
-  music = ctx.createGain(); music.gain.value = MUSIC; music.connect(master);
+  master = ctx.createGain(); master.gain.value = 0.7; master.connect(ctx.destination);
+  sfx = ctx.createGain(); sfx.gain.value = 1; sfx.connect(master);
+  music = ctx.createGain(); music.gain.value = 0.5; music.connect(master);
 }
 
 function tone(freq, dur, o = {}) {
@@ -71,7 +62,7 @@ export const Sound = {
       step++;
     }, 140);
   },
-  duck(on) { if (music) music.gain.setTargetAtTime(on ? MUSIC * 0.3 : MUSIC, ctx.currentTime, 0.2); },
+  duck(on) { if (music) music.gain.setTargetAtTime(on ? 0.12 : 0.5, ctx.currentTime, 0.2); },
 
   join() { tone(N(76), 0.08, { vol: 0.1 }); tone(N(83), 0.12, { vol: 0.1, at: 0.08 }); },
   start() { [72, 76, 79, 84].forEach((n, i) => tone(N(n), 0.1, { vol: 0.12, at: i * 0.07 })); },
