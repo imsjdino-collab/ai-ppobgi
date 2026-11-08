@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#07060f">
+<title>AI 뽑기 조종기</title>
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/play.css">
+</head>
+<body class="scanlines">
+<div class="wrap">
+  <header class="ph">
+    <div class="logo neon-pink">AI 뽑기 조종기</div>
+    <div id="modeTag" class="mode-tag"></div>
+  </header>
+
+  <!-- 로딩 -->
+  <section id="v-loading" class="view on">
+    <div class="center muted">연결 중...</div>
+  </section>
+
+  <!-- 참여 -->
+  <section id="v-join" class="view">
+    <div class="panel">
+      <div class="p-title neon-cyan" id="joinTitle">학번을 선택하세요</div>
+      <div id="joinEvent" class="sel-row">
+        <label><select id="selG"></select><span>학년</span></label>
+        <label><select id="selC"></select><span>반</span></label>
+        <label><select id="selN"></select><span>번</span></label>
+      </div>
+      <div id="joinPractice" class="nick-row">
+        <input id="nick" type="text" maxlength="8" placeholder="닉네임 (8자 이내)" autocomplete="off">
+      </div>
+      <div id="joinMsg" class="msg"></div>
+      <button id="joinBtn" class="btn gold big-btn">참여하기</button>
+      <div class="hint" id="joinHint">한 사람당 한 번만 할 수 있어요. 친구 학번으로 하면 그 친구의 기회가 사라져요!</div>
+    </div>
+  </section>
+
+  <!-- 대기 -->
+  <section id="v-wait" class="view">
+    <div class="panel center">
+      <div class="who" id="waitWho"></div>
+      <div class="p-title neon-cyan">대기 중</div>
+      <div class="pos"><span id="waitPos">-</span></div>
+      <div class="muted" id="waitText">앞에 기다리는 사람</div>
+      <div class="hint">내 차례가 되면 진동이 울려요.<br>화면을 켜 둔 채로 기다려 주세요!</div>
+      <button id="leaveBtn" class="btn small-btn">대기 취소</button>
+    </div>
+  </section>
+
+  <!-- 조종 -->
+  <section id="v-turn" class="view">
+    <div class="turn-top">
+      <div class="neon-gold turn-label">내 차례!</div>
+      <div id="turnTimer" class="turn-timer">10</div>
+    </div>
+    <div class="pad">
+      <button id="btnL" class="arrow" aria-label="왼쪽">◀</button>
+      <button id="btnR" class="arrow" aria-label="오른쪽">▶</button>
+    </div>
+    <button id="btnGrab" class="grab">뽑기!</button>
+    <div class="hint center">버튼을 꾹 누르면 집게가 움직여요. 화면을 보세요!</div>
+  </section>
+
+  <!-- 내려가는 중 -->
+  <section id="v-drop" class="view">
+    <div class="panel center">
+      <div class="dots neon-pink">두근두근</div>
+      <div class="muted">메인 화면을 보세요!</div>
+      <div class="mini-cap"><div></div></div>
+    </div>
+  </section>
+
+  <!-- 결과 -->
+  <section id="v-result" class="view">
+    <div id="resCard" class="res-card">
+      <div class="res-who" id="resWho"></div>
+      <div class="res-rank" id="resRank"></div>
+      <div class="res-prize" id="resPrize"></div>
+      <div class="res-clock" id="resClock"></div>
+      <div class="res-note" id="resNote">이 화면을 선생님께 보여주세요!</div>
+    </div>
+    <button id="againBtn" class="btn cyan big-btn hidden">한 번 더 하기</button>
+  </section>
+
+  <!-- 이미 참여 -->
+  <section id="v-done" class="view">
+    <div class="panel center">
+      <div class="who" id="doneWho"></div>
+      <div class="p-title neon-pink">이미 참여했어요!</div>
+      <div id="doneLast" class="done-last"></div>
+      <div class="hint">상품은 한 번만 받을 수 있어요.</div>
+      <button id="doneBack" class="btn small-btn">다른 학번으로 참여</button>
+    </div>
+  </section>
+
+  <!-- 소진 -->
+  <section id="v-soldout" class="view">
+    <div class="panel center">
+      <div class="p-title neon-pink so">SOLD OUT</div>
+      <div>오늘의 캡슐이 모두 소진되었습니다!</div>
+      <div class="hint">참여해 주셔서 고마워요 :)</div>
+    </div>
+  </section>
+</div>
+<script type="module" src="js/play.js"></script>
+</body>
+</html>

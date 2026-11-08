@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI 뽑기 머신</title>
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/main.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head>
+<body class="scanlines">
+<div id="app">
+  <header class="top">
+    <div class="brand">
+      <div class="logo neon-pink">AI 뽑기 머신</div>
+      <div class="sub">개포중학교 AI교실</div>
+    </div>
+    <div id="modeBadge" class="mode-badge"></div>
+    <div id="stockBar" class="stock-bar"></div>
+  </header>
+
+  <main class="stage">
+    <aside class="left">
+      <div class="how card">
+        <div class="card-title neon-cyan">HOW TO PLAY</div>
+        <ol>
+          <li><b>QR</b>을 찍어요</li>
+          <li id="howStep2">학번을 입력해요</li>
+          <li>차례가 오면 <b id="howSec">10</b>초 안에<br><b class="neon-gold">뽑기!</b></li>
+        </ol>
+      </div>
+      <div class="qr card">
+        <div id="qrBox" class="qr-box"></div>
+        <div class="qr-label neon-gold">QR 찍고 참여!</div>
+        <div id="qrUrl" class="qr-url"></div>
+      </div>
+    </aside>
+
+    <section class="machine-wrap">
+      <div class="machine">
+        <div class="marquee"><span>★ INSERT CHANCE ★</span><span>1등을 노려라!</span><span>★ AI CLAW ★</span></div>
+        <canvas id="cv"></canvas>
+      </div>
+    </section>
+
+    <aside class="right">
+      <div class="now card">
+        <div class="card-title neon-pink">NOW PLAYING</div>
+        <div id="nowName" class="now-name">대기 중...</div>
+        <div id="timer" class="timer"></div>
+      </div>
+      <div class="queue card">
+        <div class="card-title neon-cyan">NEXT <span id="qCount" class="q-count"></span></div>
+        <ol id="qList" class="q-list"></ol>
+      </div>
+    </aside>
+  </main>
+</div>
+
+<!-- 결과 공개 -->
+<div id="reveal" class="reveal hidden">
+  <canvas id="confetti"></canvas>
+  <div class="reveal-inner">
+    <div id="revealWho" class="reveal-who"></div>
+    <div class="big-capsule" id="bigCap"><div class="cap-top"></div><div class="cap-bot"></div></div>
+    <div id="revealRank" class="reveal-rank"></div>
+    <div id="revealPrize" class="reveal-prize"></div>
+  </div>
+</div>
+
+<!-- 재고 소진 -->
+<div id="soldout" class="soldout hidden">
+  <div class="neon-pink so-title">SOLD OUT</div>
+  <div class="so-text">오늘의 캡슐이 모두 소진되었습니다!</div>
+  <div class="so-sub">참여해 주셔서 고마워요 :)</div>
+</div>
+
+<!-- 시작 화면 -->
+<div id="startOv" class="start-ov">
+  <div class="logo neon-pink big">AI 뽑기 머신</div>
+  <button id="startBtn" class="btn gold start-btn">▶ 클릭해서 시작</button>
+  <div class="start-hint">전체 화면과 효과음이 켜져요. 메인 화면은 한 곳에서만 열어 주세요.</div>
+  <div id="startErr" class="start-err"></div>
+</div>
+
+<!-- 다른 메인 화면 경고 -->
+<div id="hostWarn" class="host-warn hidden">
+  다른 기기에서 메인 화면이 실행 중이에요.
+  <button id="takeover" class="btn pink">이 화면으로 가져오기</button>
+</div>
+
+<button id="muteBtn" class="mute-btn" title="배경음 켜기/끄기">♪</button>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

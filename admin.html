@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI 뽑기 관리자</title>
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/admin.css">
+</head>
+<body>
+<div id="login" class="login">
+  <div class="logo neon-pink">관리자</div>
+  <input id="pin" type="password" inputmode="numeric" placeholder="비밀번호">
+  <button id="pinBtn" class="btn gold">들어가기</button>
+  <div id="pinMsg" class="msg"></div>
+</div>
+
+<div id="adm" class="adm hidden">
+  <header class="ah">
+    <div class="logo neon-pink">AI 뽑기 관리자</div>
+    <a class="btn small" href="index.html" target="_blank">메인 화면 열기 ↗</a>
+  </header>
+
+  <section class="box">
+    <h2>운영 모드</h2>
+    <div class="mode-switch">
+      <button data-mode="practice" class="mode-btn">연습 모드<small>닉네임 참여 · 수업/사전 공개용</small></button>
+      <button data-mode="event" class="mode-btn">본 행사<small>학번 참여 · 재고 차감 · 기록</small></button>
+    </div>
+    <div class="row">
+      <label class="tg"><input type="checkbox" id="oneTry"> 본 행사: 학번당 1회 제한</label>
+      <label class="tg"><input type="checkbox" id="practiceDeplete"> 연습 모드에서도 재고 줄이기</label>
+      <label>조종 시간 <input type="number" id="controlSec" min="3" max="60" style="width:80px"> 초</label>
+      <button id="saveSettings" class="btn cyan">설정 저장</button>
+      <span id="setMsg" class="msg"></span>
+    </div>
+  </section>
+
+  <section class="box">
+    <h2>상품 · 재고</h2>
+    <div class="tabs" id="stockTabs">
+      <button data-t="event" class="tab on">본 행사</button>
+      <button data-t="practice" class="tab">연습/수업용</button>
+    </div>
+    <table class="tbl">
+      <thead><tr><th>등수</th><th>상품 이름</th><th>총 수량</th><th>남은 수량</th><th>확률(현재)</th></tr></thead>
+      <tbody id="stockBody"></tbody>
+    </table>
+    <div class="row">
+      <button id="saveStock" class="btn cyan">재고 저장</button>
+      <button id="refill" class="btn">남은 수량을 총 수량으로 채우기</button>
+      <span id="stockMsg" class="msg"></span>
+    </div>
+  </section>
+
+  <section class="box">
+    <h2>학번별 기회 관리</h2>
+    <div class="row">
+      <select id="aG"></select>학년
+      <select id="aC"></select>반
+      <select id="aN"></select>번
+      <button id="aLook" class="btn">조회</button>
+    </div>
+    <div id="aInfo" class="ainfo"></div>
+    <div class="row">
+      <button id="aPlus" class="btn gold">기회 +1</button>
+      <button id="aReset" class="btn">이 학번 참여 기록 초기화</button>
+      <span id="aMsg" class="msg"></span>
+    </div>
+  </section>
+
+  <section class="box">
+    <h2>지금 진행 중 · 대기열</h2>
+    <div id="nowInfo" class="now-info"></div>
+    <div class="row"><button id="skipNow" class="btn danger">현재 게임 취소</button><button id="clearQueue" class="btn">대기열 비우기</button></div>
+    <ol id="qAdmin" class="q-admin"></ol>
+  </section>
+
+  <section class="box">
+    <h2>결과 기록</h2>
+    <div class="tabs" id="logTabs">
+      <button data-t="event" class="tab on">본 행사</button>
+      <button data-t="practice" class="tab">연습/수업용</button>
+    </div>
+    <div id="logSummary" class="summary"></div>
+    <div class="row">
+      <button id="csv" class="btn cyan">엑셀(CSV) 내려받기</button>
+      <button id="clearLogs" class="btn">이 기록 비우기</button>
+    </div>
+    <div class="log-wrap"><table class="tbl"><thead><tr><th>시간</th><th>참여자</th><th>등수</th><th>상품</th></tr></thead><tbody id="logBody"></tbody></table></div>
+  </section>
+
+  <section class="box danger-zone">
+    <h2>본 행사 전체 초기화</h2>
+    <p>참여 기록, 결과 기록, 대기열을 모두 지우고 남은 수량을 총 수량으로 되돌려요. 리허설이 끝난 뒤 본 행사 직전에 쓰세요.</p>
+    <div class="row">
+      <input id="resetConfirm" type="text" placeholder="초기화 라고 입력">
+      <button id="fullReset" class="btn danger">전체 초기화</button>
+      <span id="resetMsg" class="msg"></span>
+    </div>
+  </section>
+</div>
+<script type="module" src="js/admin.js"></script>
+</body>
+</html>

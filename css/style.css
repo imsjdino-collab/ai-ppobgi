@@ -1,0 +1,80 @@
+@import url("https://cdn.jsdelivr.net/npm/galmuri/dist/galmuri.css");
+@import url("https://fonts.googleapis.com/css2?family=Do+Hyeon&display=swap");
+
+:root {
+  --bg: #07060f;
+  --bg2: #110d24;
+  --panel: rgba(20, 14, 44, 0.78);
+  --line: rgba(140, 110, 255, 0.35);
+  --text: #f2eeff;
+  --muted: #a49cc8;
+  --cyan: #22e4ff;
+  --pink: #ff3ea5;
+  --gold: #ffd23f;
+  --green: #7cff6b;
+  --violet: #9b8cff;
+  --red: #ff4d5e;
+  --pixel: "Galmuri11", "Galmuri9", "Do Hyeon", system-ui, sans-serif;
+  --display: "Do Hyeon", "Galmuri11", system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--pixel);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 브라운관 줄무늬 */
+.scanlines::after {
+  content: "";
+  position: fixed; inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(to bottom, rgba(255,255,255,0.025) 0 1px, transparent 1px 3px);
+  mix-blend-mode: overlay;
+  z-index: 999;
+}
+
+.neon-cyan { color: var(--cyan); text-shadow: 0 0 6px var(--cyan), 0 0 18px rgba(34,228,255,.6); }
+.neon-pink { color: var(--pink); text-shadow: 0 0 6px var(--pink), 0 0 18px rgba(255,62,165,.6); }
+.neon-gold { color: var(--gold); text-shadow: 0 0 6px var(--gold), 0 0 20px rgba(255,210,63,.6); }
+
+.btn {
+  font-family: var(--pixel);
+  font-size: 16px;
+  color: var(--text);
+  background: rgba(155, 140, 255, 0.12);
+  border: 2px solid var(--violet);
+  border-radius: 10px;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: transform .08s, background .15s;
+}
+.btn:hover { background: rgba(155, 140, 255, 0.25); }
+.btn:active { transform: translateY(2px); }
+.btn.cyan { border-color: var(--cyan); background: rgba(34,228,255,.12); }
+.btn.pink { border-color: var(--pink); background: rgba(255,62,165,.14); }
+.btn.gold { border-color: var(--gold); background: rgba(255,210,63,.14); color: var(--gold); }
+.btn.danger { border-color: var(--red); background: rgba(255,77,94,.14); color: #ffb3bb; }
+.btn:disabled { opacity: .4; cursor: default; }
+
+select, input[type="text"], input[type="number"], input[type="password"] {
+  font-family: var(--pixel);
+  font-size: 16px;
+  color: var(--text);
+  background: #0e0a20;
+  border: 2px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  outline: none;
+}
+select:focus, input:focus { border-color: var(--cyan); }
+
+.rank-chip {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 2.6em; padding: 2px 8px;
+  border-radius: 999px; font-weight: 700;
+  color: #0b0716;
+}
