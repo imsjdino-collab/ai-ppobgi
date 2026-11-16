@@ -56,3 +56,15 @@ textarea:focus { border-color: var(--cyan); }
 .stu-preview .err { color: var(--pink); }
 .stu-preview table { margin-top: 6px; }
 input[type=file] { color: var(--muted); font-family: var(--pixel); }
+.jt-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.jt-card { position: relative; display: flex; flex-direction: column; gap: 4px; padding: 14px 14px 14px 40px; border: 2px solid var(--line); border-radius: 12px; background: #0e0a20; cursor: pointer; }
+.jt-card input { position: absolute; left: 14px; top: 16px; width: 18px; height: 18px; accent-color: var(--gold); }
+.jt-card b { font-size: 16px; }
+.jt-card small { color: var(--muted); font-size: 12px; line-height: 1.5; }
+.jt-card:has(input:checked) { border-color: var(--gold); box-shadow: 0 0 14px rgba(255,210,63,.3); }
+.sub-panel { margin-top: 14px; padding: 14px; border: 1.5px dashed var(--line); border-radius: 12px; }
+.sub-panel h3 { margin: 0 0 8px; font-size: 16px; font-weight: 400; color: var(--gold); }
+.stu-status { font-size: 15px; margin-bottom: 4px; }
+.stu-status.empty { color: var(--pink); }
+.stu-status.ok { color: var(--green); }
+@media (max-width: 700px) { .jt-cards { grid-template-columns: 1fr; } }

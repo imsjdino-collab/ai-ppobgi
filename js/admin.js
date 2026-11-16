@@ -9,7 +9,6 @@ import { ADMIN_PIN } from "./firebase-config.js";
 const $ = (id) => document.getElementById(id);
 const ss = safeStore("sessionStorage");
 let settings = null, stock = null, logs = {}, queue = {}, lanes = {}, roster = {}, rosterDirty = false;
-let classes = {}, clsDirty = false, clsGrade = 1;
 let stockTab = "event", logTab = "event", stockDirty = false;
 
 function flash(id, text, err = false) {
@@ -37,7 +36,6 @@ async function start() {
   watch("queue", (v) => { queue = v || {}; renderQueue(); });
   watch("lanes", (v) => { lanes = v || {}; renderQueue(); });
   watch("roster", (v) => { roster = v || {}; if (!rosterDirty) renderRoster(); });
-  watch("classes", (v) => { classes = v || {}; if (!clsDirty) renderCls(); });
   watch("students", (v) => renderStuStatus(v || {}));
 }
 
@@ -46,10 +44,13 @@ function renderSettings() {
   if (!settings) return;
   document.querySelectorAll(".mode-btn").forEach((b) => b.classList.toggle("on", b.dataset.mode === settings.mode));
   $("oneTry").checked = !!settings.oneTry;
-  $("nameCheck").checked = !!settings.nameCheck;
-  $("onlyGrade").value = String(settings.onlyGrade || 0);
-  $("onlyClass").value = String(settings.onlyClass || 0);
-  document.querySelectorAll('input[name="joinType"]').forEach((x) => { x.checked = x.value === (settings.joinType || "student"); });
+  if (!joinDirty) {
+    $("onlyGrade").value = String(settings.onlyGrade || 0);
+    $("onlyClass").value = String(settings.onlyClass || 0);
+    const jt = joinTypeOf(settings);
+    document.querySelectorAll('input[name="joinType"]').forEach((x) => { x.checked = x.value === jt; });
+    showJoinPanels();
+  }
   $("practiceDeplete").checked = !!settings.practiceDeplete;
   if (document.activeElement !== $("controlSec")) $("controlSec").value = settings.controlSec;
 }
@@ -65,18 +66,47 @@ document.querySelectorAll(".mode-btn").forEach((b) => {
     flash("setMsg", "모드를 바꿨어요");
   };
 });
-$("saveSettings").onclick = async () => {
-  const sec = Math.max(3, Math.min(60, parseInt($("controlSec").value, 10) || 10));
-  const jt = (document.querySelector('input[name="joinType"]:checked') || {}).value || "student";
-  const ups = { oneTry: $("oneTry").checked, practiceDeplete: $("practiceDeplete").checked, controlSec: sec, joinType: jt,
-    onlyGrade: +$("onlyGrade").value || 0, onlyClass: +$("onlyClass").value || 0, nameCheck: $("nameCheck").checked };
-  if (ups.nameCheck && !stuCount) alert("학생 명렬표가 아직 없어요. 아래 '학생 명렬표'에 파일을 올리고 저장해 주세요. 그 전까지는 아무도 참여할 수 없어요.");
-  if (settings && jt !== settings.joinType && settings.mode === "event") {
+// 예전 설정(학번 + nameCheck 체크)도 "학번 + 이름"으로 보여줌
+const joinTypeOf = (st) => (st.joinType === "roster" ? "roster" : st.joinType === "studentName" || st.nameCheck ? "studentName" : "student");
+let joinDirty = false;
+const pickedJoin = () => (document.querySelector('input[name="joinType"]:checked') || {}).value || "student";
+function showJoinPanels() {
+  const jt = pickedJoin();
+  $("panelStu").classList.toggle("hidden", jt !== "studentName");
+  $("panelTeacher").classList.toggle("hidden", jt !== "roster");
+  $("targetRow").classList.toggle("hidden", jt === "roster");
+}
+document.querySelectorAll('input[name="joinType"]').forEach((x) => x.onchange = () => { joinDirty = true; showJoinPanels(); });
+["onlyGrade", "onlyClass"].forEach((id) => $(id).addEventListener("change", () => { joinDirty = true; }));
+
+$("saveJoin").onclick = async () => {
+  const jt = pickedJoin();
+  if (jt === "studentName" && !stuCount) {
+    alert("학생 명렬표가 아직 저장되지 않았어요.\n파일을 고른 뒤 [명렬표 저장] 버튼까지 눌러 주세요.\n(명렬표가 없으면 아무도 참여할 수 없어요)");
+    return;
+  }
+  if (jt === "roster" && !Object.keys(roster).length) {
+    alert("선생님 명단이 비어 있어요.\n이름을 넣고 [명단 저장] 버튼까지 눌러 주세요.");
+    return;
+  }
+  const ups = {
+    joinType: jt, nameCheck: jt === "studentName",
+    onlyGrade: jt === "roster" ? 0 : +$("onlyGrade").value || 0,
+    onlyClass: jt === "roster" ? 0 : +$("onlyClass").value || 0,
+  };
+  if (settings && settings.mode === "event" && (jt !== joinTypeOf(settings))) {
     if (!confirm("참여 방식을 바꾸면 지금 대기열이 비워져요. 바꿀까요?")) return;
     await remove(r("queue"));
   }
-  if (jt === "roster" && !Object.keys(roster).length) alert("이름 명단이 비어 있어요. 아래 '이름 명단'에 선생님 이름을 넣고 저장해 주세요.");
   await update(r("settings"), ups);
+  await remove(r("classes"));   // 예전 "반별 인원" 설정은 더 이상 쓰지 않음
+  joinDirty = false;
+  flash("joinMsg", "저장했어요");
+};
+
+$("saveSettings").onclick = async () => {
+  const sec = Math.max(3, Math.min(60, parseInt($("controlSec").value, 10) || 10));
+  await update(r("settings"), { oneTry: $("oneTry").checked, practiceDeplete: $("practiceDeplete").checked, controlSec: sec });
   flash("setMsg", "저장했어요");
 };
 
@@ -277,47 +307,19 @@ $("saveRoster").onclick = async () => {
   flash("rosterMsg", "저장했어요");
 };
 
-// ---------- 반별 인원 ----------
-function renderCls() {
-  const g = clsGrade;
-  $("clsBody").innerHTML = Array.from({ length: 13 }, (_, i) => {
-    const c = i + 1, cf = classes[`${g}-${c}`] || {};
-    return `<tr data-c="${c}"><td>${g}-${c}</td>
-      <td><input type="number" min="1" max="${MAX_NUM}" data-f="max" value="${cf.max || MAX_NUM}"></td>
-      <td><input type="text" data-f="skip" value="${escapeHtml(cf.skip || "")}" placeholder="없음"></td>
-      <td>${classNumbers(classes, g, c).length}명</td></tr>`;
-  }).join("");
-  $("clsBody").querySelectorAll("input").forEach((x) => x.oninput = () => { clsDirty = true; });
-}
-document.querySelectorAll("#clsTabs .tab").forEach((t) => t.onclick = () => {
-  if (clsDirty && !confirm("저장하지 않은 변경이 있어요. 버릴까요?")) return;
-  clsDirty = false; clsGrade = +t.dataset.g;
-  document.querySelectorAll("#clsTabs .tab").forEach((x) => x.classList.toggle("on", x === t));
-  renderCls();
-});
-$("saveCls").onclick = async () => {
-  const ups = {};
-  $("clsBody").querySelectorAll("tr").forEach((tr) => {
-    const c = tr.dataset.c;
-    const max = Math.max(1, Math.min(MAX_NUM, parseInt(tr.querySelector("[data-f=max]").value, 10) || MAX_NUM));
-    const skip = tr.querySelector("[data-f=skip]").value.split(/[^0-9]+/).filter(Boolean).map(Number)
-      .filter((n) => n >= 1 && n <= max).sort((a, b) => a - b).join(", ");
-    ups[`classes/${clsGrade}-${c}`] = max === MAX_NUM && !skip ? null : { max, skip };
-  });
-  await update(r(), ups);
-  clsDirty = false; renderCls();
-  flash("clsMsg", clsGrade + "학년 저장했어요");
-};
-renderCls();
 
 // ---------- 학생 명렬표 ----------
 let stuParsed = null, stuCount = 0;
 function renderStuStatus(v) {
-  const per = { 1: 0, 2: 0, 3: 0 };
+  const per = {};
   let tot = 0;
-  for (const [ck, nums] of Object.entries(v)) { const n = Object.keys(nums || {}).length; per[ck[0]] = (per[ck[0]] || 0) + n; tot += n; }
+  for (const [ck, nums] of Object.entries(v)) { const n = Object.keys(nums || {}).length; per[ck] = n; tot += n; }
   stuCount = tot;
-  $("stuStatus").textContent = tot ? `저장된 명렬표: ${tot}명 (1학년 ${per[1]}명 · 2학년 ${per[2]}명 · 3학년 ${per[3]}명)` : "저장된 명렬표가 없어요";
+  const el = $("stuStatus");
+  if (!tot) { el.className = "stu-status empty"; el.textContent = "✗ 저장된 명렬표가 없어요"; return; }
+  const list = Object.keys(per).sort().map((ck) => { const [g, c] = ck.split("-"); return `${g}-${+c} (${per[ck]}명)`; });
+  el.className = "stu-status ok";
+  el.textContent = `✓ 저장된 명렬표: 총 ${tot}명 — ` + list.join(", ");
 }
 const cellStr = (x) => String(x ?? "").replace(/\s+/g, "");
 const toInt = (x) => parseInt(String(x ?? "").replace(/[^0-9]/g, ""), 10);

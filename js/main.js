@@ -327,7 +327,8 @@ function renderMode() {
   b.textContent = settings.mode === "event" ? "★ 본 행사" + (tg ? ` · ${tg}만` : "") : "연습 모드";
   $("howSec").textContent = settings.controlSec;
   $("howStep2").textContent = settings.mode !== "event" ? "닉네임을 입력해요"
-    : settings.joinType === "roster" ? "이름을 입력해요" : "학번을 입력해요";
+    : settings.joinType === "roster" ? "이름을 입력해요"
+    : settings.nameCheck ? "학번과 이름을 입력해요" : "학번을 입력해요";
 }
 
 function sortedQueue() {

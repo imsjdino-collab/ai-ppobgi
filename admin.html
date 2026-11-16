@@ -22,24 +22,69 @@
   </header>
 
   <section class="box">
-    <h2>운영 모드</h2>
+    <h2>① 운영 모드</h2>
     <div class="mode-switch">
-      <button data-mode="practice" class="mode-btn">연습 모드<small>닉네임 참여 · 수업/사전 공개용</small></button>
-      <button data-mode="event" class="mode-btn">본 행사<small>학번/이름 참여 · 재고 차감 · 기록</small></button>
+      <button data-mode="practice" class="mode-btn">연습 모드<small>닉네임으로 자유롭게 · 수업/사전 공개용</small></button>
+      <button data-mode="event" class="mode-btn">본 행사<small>아래 ② 참여 방식대로 · 재고 차감 · 기록</small></button>
     </div>
-    <div class="row join-type">
-      <span>본 행사 참여 방식</span>
-      <label class="tg"><input type="radio" name="joinType" value="student"> 학번 (학생)</label>
-      <label class="tg"><input type="radio" name="joinType" value="roster"> 이름 명단 (선생님)</label>
+  </section>
+
+  <section class="box">
+    <h2>② 본 행사 참여 방식</h2>
+    <div class="jt-cards">
+      <label class="jt-card"><input type="radio" name="joinType" value="student">
+        <b>학번만</b><small>학년·반·번호만 고르면 참여. 명단 필요 없음</small></label>
+      <label class="jt-card"><input type="radio" name="joinType" value="studentName">
+        <b>학번 + 이름 (학생)</b><small>올려둔 학생 명렬표와 학번·이름이 맞아야 참여</small></label>
+      <label class="jt-card"><input type="radio" name="joinType" value="roster">
+        <b>이름만 (선생님)</b><small>선생님 명단에 있는 이름을 입력해야 참여</small></label>
     </div>
-    <div class="row join-type">
-      <span>참여 대상 (학번)</span>
+
+    <div id="targetRow" class="row join-type">
+      <span>참여 대상</span>
       <select id="onlyGrade"><option value="0">전체 학년</option><option value="1">1학년</option><option value="2">2학년</option><option value="3">3학년</option></select>
       <select id="onlyClass"></select>
       <span class="muted-s">한 반만 할 때 고르세요</span>
     </div>
+
+    <!-- 학번 + 이름: 학생 명렬표 -->
+    <div id="panelStu" class="sub-panel">
+      <h3>학생 명렬표</h3>
+      <p class="note">엑셀(.xlsx)이나 CSV 파일을 고른 뒤 <b>명렬표 저장</b>까지 눌러야 저장돼요. 첫 줄에 <b>학번</b>(또는 <b>학년-반-번호</b>)과 <b>이름</b> 칸이 있으면 돼요. 학번은 20307이나 2-3-7 모두 돼요. 이름은 암호값으로 바꿔 저장해서 데이터에서 보이지 않아요. 전학 간 학생은 명렬표에서 빼고 올리면 돼요.</p>
+      <div id="stuStatus" class="stu-status"></div>
+      <div class="row">
+        <input id="stuFile" type="file" accept=".xlsx,.xls,.csv">
+        <button id="stuTemplate" class="btn small">양식 내려받기</button>
+      </div>
+      <div id="stuPreview" class="stu-preview"></div>
+      <div class="row">
+        <button id="stuSave" class="btn cyan" disabled>명렬표 저장</button>
+        <button id="stuClear" class="btn danger">저장된 명렬표 지우기</button>
+        <span id="stuMsg" class="msg"></span>
+      </div>
+    </div>
+
+    <!-- 이름만: 선생님 명단 -->
+    <div id="panelTeacher" class="sub-panel">
+      <h3>선생님 명단</h3>
+      <p class="note">한 줄에 한 명씩 이름을 넣고 <b>명단 저장</b>을 누르세요. 같은 이름이 있으면 김개포1, 김개포2처럼 숫자를 붙여 주세요. (띄어쓰기는 무시해요)</p>
+      <textarea id="rosterText" rows="8" placeholder="김개포&#10;이양재&#10;박도곡1&#10;박도곡2"></textarea>
+      <div class="row">
+        <button id="saveRoster" class="btn cyan">명단 저장</button>
+        <span id="rosterCount" class="muted-s"></span>
+        <span id="rosterMsg" class="msg"></span>
+      </div>
+    </div>
+
     <div class="row">
-      <label class="tg"><input type="checkbox" id="nameCheck"> 학번 + 이름 확인 (학생 명렬표 필요)</label>
+      <button id="saveJoin" class="btn gold">참여 방식 저장</button>
+      <span id="joinMsg" class="msg"></span>
+    </div>
+  </section>
+
+  <section class="box">
+    <h2>③ 게임 설정</h2>
+    <div class="row">
       <label class="tg"><input type="checkbox" id="oneTry"> 본 행사: 1인 1회 제한</label>
       <label class="tg"><input type="checkbox" id="practiceDeplete"> 연습 모드에서도 재고 줄이기</label>
       <label>조종 시간 <input type="number" id="controlSec" min="3" max="60" style="width:80px"> 초</label>
@@ -49,52 +94,7 @@
   </section>
 
   <section class="box">
-    <h2>학생 명렬표 (학번 + 이름 확인)</h2>
-    <p class="note">엑셀(.xlsx)이나 CSV 파일을 올리세요. 첫 줄에 <b>학번</b>(또는 <b>학년-반-번호</b>)과 <b>이름</b> 칸이 있으면 돼요. 학번은 10307이나 1-3-7 모두 돼요. <b>학년·반·번호·이름</b> 칸으로 나눠도 돼요. 이름은 암호값으로 바꿔 저장해서, 데이터를 들여다봐도 이름이 보이지 않아요.</p>
-    <div class="row">
-      <input id="stuFile" type="file" accept=".xlsx,.xls,.csv">
-      <button id="stuTemplate" class="btn small">양식 내려받기</button>
-    </div>
-    <div id="stuPreview" class="stu-preview"></div>
-    <div class="row">
-      <button id="stuSave" class="btn cyan" disabled>명렬표 저장</button>
-      <button id="stuClear" class="btn danger">저장된 명렬표 지우기</button>
-      <span id="stuMsg" class="msg"></span>
-    </div>
-    <div id="stuStatus" class="muted-s" style="margin-top:8px"></div>
-  </section>
-
-  <section class="box">
-    <h2>반별 인원 · 빼는 번호 (학생)</h2>
-    <p class="note">반마다 마지막 번호와, 전학 등으로 뺄 번호를 적어 주세요. 빼는 번호는 폰의 번호 목록에서 사라지고 참여할 수 없어요. 비워 두면 1~35번 모두 참여할 수 있어요.</p>
-    <div class="tabs" id="clsTabs">
-      <button data-g="1" class="tab on">1학년</button>
-      <button data-g="2" class="tab">2학년</button>
-      <button data-g="3" class="tab">3학년</button>
-    </div>
-    <table class="tbl cls-tbl">
-      <thead><tr><th>반</th><th>마지막 번호</th><th>빼는 번호 (예: 7, 15)</th><th>참여 인원</th></tr></thead>
-      <tbody id="clsBody"></tbody>
-    </table>
-    <div class="row">
-      <button id="saveCls" class="btn cyan">이 학년 저장</button>
-      <span id="clsMsg" class="msg"></span>
-    </div>
-  </section>
-
-  <section class="box">
-    <h2>이름 명단 (선생님)</h2>
-    <p class="note">한 줄에 한 명씩 이름을 넣으세요. 참여 방식이 <b>이름 명단</b>일 때, 여기 있는 이름을 입력해야만 참여할 수 있어요. 같은 이름이 있으면 김개포1, 김개포2처럼 숫자를 붙여 주세요. (띄어쓰기는 무시해요)</p>
-    <textarea id="rosterText" rows="8" placeholder="김개포&#10;이양재&#10;박도곡1&#10;박도곡2"></textarea>
-    <div class="row">
-      <button id="saveRoster" class="btn cyan">명단 저장</button>
-      <span id="rosterCount" class="muted-s"></span>
-      <span id="rosterMsg" class="msg"></span>
-    </div>
-  </section>
-
-  <section class="box">
-    <h2>상품 · 재고</h2>
+    <h2>④ 상품 · 재고</h2>
     <div class="tabs" id="stockTabs">
       <button data-t="event" class="tab on">본 행사</button>
       <button data-t="practice" class="tab">연습/수업용</button>
