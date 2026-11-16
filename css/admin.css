@@ -50,3 +50,9 @@ textarea:focus { border-color: var(--cyan); }
 .muted-s { color: var(--muted); font-size: 13px; }
 .join-type span:first-child { color: var(--cyan); }
 .tbl tr.off { display: none; }
+.cls-tbl input[data-f=max] { max-width: 80px; }
+.cls-tbl td:last-child { color: var(--muted); }
+.stu-preview { margin-top: 10px; font-size: 14px; line-height: 1.6; }
+.stu-preview .err { color: var(--pink); }
+.stu-preview table { margin-top: 6px; }
+input[type=file] { color: var(--muted); font-family: var(--pixel); }

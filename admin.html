@@ -32,12 +32,53 @@
       <label class="tg"><input type="radio" name="joinType" value="student"> 학번 (학생)</label>
       <label class="tg"><input type="radio" name="joinType" value="roster"> 이름 명단 (선생님)</label>
     </div>
+    <div class="row join-type">
+      <span>참여 대상 (학번)</span>
+      <select id="onlyGrade"><option value="0">전체 학년</option><option value="1">1학년</option><option value="2">2학년</option><option value="3">3학년</option></select>
+      <select id="onlyClass"></select>
+      <span class="muted-s">한 반만 할 때 고르세요</span>
+    </div>
     <div class="row">
+      <label class="tg"><input type="checkbox" id="nameCheck"> 학번 + 이름 확인 (학생 명렬표 필요)</label>
       <label class="tg"><input type="checkbox" id="oneTry"> 본 행사: 1인 1회 제한</label>
       <label class="tg"><input type="checkbox" id="practiceDeplete"> 연습 모드에서도 재고 줄이기</label>
       <label>조종 시간 <input type="number" id="controlSec" min="3" max="60" style="width:80px"> 초</label>
       <button id="saveSettings" class="btn cyan">설정 저장</button>
       <span id="setMsg" class="msg"></span>
+    </div>
+  </section>
+
+  <section class="box">
+    <h2>학생 명렬표 (학번 + 이름 확인)</h2>
+    <p class="note">엑셀(.xlsx)이나 CSV 파일을 올리세요. 첫 줄에 <b>학번</b>과 <b>이름</b> 칸이 있으면 돼요. (학번은 10307처럼 학년1자리+반2자리+번호2자리, 또는 <b>학년·반·번호·이름</b> 칸으로 나눠도 돼요.) 이름은 암호값으로 바꿔 저장해서, 데이터를 들여다봐도 이름이 보이지 않아요.</p>
+    <div class="row">
+      <input id="stuFile" type="file" accept=".xlsx,.xls,.csv">
+      <button id="stuTemplate" class="btn small">양식 내려받기</button>
+    </div>
+    <div id="stuPreview" class="stu-preview"></div>
+    <div class="row">
+      <button id="stuSave" class="btn cyan" disabled>명렬표 저장</button>
+      <button id="stuClear" class="btn danger">저장된 명렬표 지우기</button>
+      <span id="stuMsg" class="msg"></span>
+    </div>
+    <div id="stuStatus" class="muted-s" style="margin-top:8px"></div>
+  </section>
+
+  <section class="box">
+    <h2>반별 인원 · 빼는 번호 (학생)</h2>
+    <p class="note">반마다 마지막 번호와, 전학 등으로 뺄 번호를 적어 주세요. 빼는 번호는 폰의 번호 목록에서 사라지고 참여할 수 없어요. 비워 두면 1~35번 모두 참여할 수 있어요.</p>
+    <div class="tabs" id="clsTabs">
+      <button data-g="1" class="tab on">1학년</button>
+      <button data-g="2" class="tab">2학년</button>
+      <button data-g="3" class="tab">3학년</button>
+    </div>
+    <table class="tbl cls-tbl">
+      <thead><tr><th>반</th><th>마지막 번호</th><th>빼는 번호 (예: 7, 15)</th><th>참여 인원</th></tr></thead>
+      <tbody id="clsBody"></tbody>
+    </table>
+    <div class="row">
+      <button id="saveCls" class="btn cyan">이 학년 저장</button>
+      <span id="clsMsg" class="msg"></span>
     </div>
   </section>
 
@@ -126,6 +167,7 @@
     </div>
   </section>
 </div>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script type="module" src="js/admin.js"></script>
 </body>
 </html>

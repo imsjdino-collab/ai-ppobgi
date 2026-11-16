@@ -2,7 +2,7 @@
 import {
   r, watch, get, set, update, runTransaction, push, now,
   ensureDefaults, RANKS, RANK_COLORS, LANE_IDS, LANE_INFO, depletes, leftTotal, LOSE_LINES, safeStore, escapeHtml,
-  activeRanks, isLose
+  activeRanks, isLose, gidAllowed, targetText
 } from "./db.js";
 import { Sound } from "./sound.js";
 
@@ -12,7 +12,7 @@ const HOST_ID = store.getItem("hostId") || Math.random().toString(36).slice(2, 1
 store.setItem("hostId", HOST_ID);
 
 // ---------- 상태 ----------
-let settings = null, stock = null, queue = {}, host = null;
+let settings = null, stock = null, queue = {}, host = null, classes = {};
 let started = false, isHost = false, musicOn = true;
 let lastMoveSnd = 0;
 
@@ -323,7 +323,8 @@ function renderMode() {
   if (!settings) return;
   const b = $("modeBadge");
   b.className = "mode-badge " + settings.mode;
-  b.textContent = settings.mode === "event" ? "★ 본 행사" : "연습 모드";
+  const tg = settings.mode === "event" && settings.joinType !== "roster" ? targetText(settings) : "";
+  b.textContent = settings.mode === "event" ? "★ 본 행사" + (tg ? ` · ${tg}만` : "") : "연습 모드";
   $("howSec").textContent = settings.controlSec;
   $("howStep2").textContent = settings.mode !== "event" ? "닉네임을 입력해요"
     : settings.joinType === "roster" ? "이름을 입력해요" : "학번을 입력해요";
@@ -391,6 +392,7 @@ async function startLane(ln, qkey, e) {
       const a = (await get(r("attempts/" + e.gid))).val() || {};
       if ((a.used || 0) >= 1 + (a.bonus || 0)) { await set(r("queue/" + qkey), null); return; }
     }
+    if (settings.mode === "event" && e.gid && !gidAllowed(settings, e.gid, settings.nameCheck ? undefined : classes)) { await set(r("queue/" + qkey), null); return; }
     const t = now();
     const c = {
       qkey, label: e.label, gid: e.gid || null, mode: settings.mode,
@@ -697,6 +699,7 @@ async function boot() {
   }
   watch("settings", (v) => { settings = v; renderMode(); renderStock(); renderQueue(); maybeStartNext(); });
   watch("stock", (v) => { stock = v; renderStock(); maybeStartNext(); });
+  watch("classes", (v) => { classes = v || {}; });
   watch("queue", (v) => { queue = v || {}; renderQueue(); maybeStartNext(); });
   watch("control", onControl);
   watch("host", onHost);

@@ -2,7 +2,7 @@
 import {
   r, watch, get, set, update, onDisconnect, now,
   RANK_COLORS, LANE_IDS, LANE_INFO, depletes, leftTotal, gidOf, labelOf, LOSE_LINES, safeStore, escapeHtml,
-  isLose, rankText, nameKey, tidOf
+  isLose, rankText, nameKey, tidOf, gidAllowed, targetText, classNumbers, classKey, nameHash, pad2, numKey
 } from "./db.js";
 
 const $ = (id) => document.getElementById(id);
@@ -11,7 +11,7 @@ const CLIENT = ls.getItem("clientId") || Math.random().toString(36).slice(2, 12)
 ls.setItem("clientId", CLIENT);
 
 let settings = null, current = null, queue = {}, stock = null, connected = false;
-let lanes = {}, myLane = null;   // current = 내가 들어가 있는 구역의 게임
+let lanes = {}, myLane = null, classes = {};   // current = 내가 들어가 있는 구역의 게임
 let ui = "loading";
 let me = null;            // { key, label, gid, mode, joinedAt }
 let lastResult = null;    // { rank, prize, at }
@@ -35,18 +35,56 @@ function fillSelect(sel, n, pad = false) {
 }
 fillSelect($("selG"), 3); fillSelect($("selC"), 13); fillSelect($("selN"), 35);
 const lastSel = (() => { try { return JSON.parse(ls.getItem("lastSel") || "null"); } catch (e) { return null; } })();
-if (lastSel) { $("selG").value = lastSel.g; $("selC").value = lastSel.c; $("selN").value = lastSel.n; }
+if (lastSel) { $("selG").value = lastSel.g; $("selC").value = lastSel.c; }
+// 고른 반의 인원에 맞춰 번호 목록 만들기 (전학 간 번호 등은 빠짐)
+const classRoster = {};   // 반별 명렬표 번호 목록(이름은 받지 않음)
+const nameCheckOn = () => settings && settings.mode === "event" && settings.joinType !== "roster" && settings.nameCheck;
+function fillNumbers() {
+  const g = $("selG").value, c = $("selC").value, sel = $("selN"), keep = sel.value || (lastSel && lastSel.n) || "";
+  let nums = g && c ? classNumbers(classes, g, c) : Array.from({ length: 35 }, (_, i) => i + 1);
+  if (nameCheckOn() && g && c) {
+    const ck = classKey(g, c);
+    if (!(ck in classRoster)) {
+      classRoster[ck] = null;
+      get(r("students/" + ck)).then((s) => { classRoster[ck] = Object.keys(s.val() || {}).map((k) => +k.replace(/\D/g, "")).sort((a, b) => a - b); fillNumbers(); })
+        .catch(() => { delete classRoster[ck]; });
+    } else if (classRoster[ck]) {
+      // 명렬표에 있는 번호만, 관리자가 뺀 번호는 제외
+      const cf = (classes && classes[`${g}-${c}`]) || {};
+      const skip = new Set(String(cf.skip || "").split(/[^0-9]+/).filter(Boolean).map(Number));
+      nums = classRoster[ck].filter((n) => !skip.has(n));
+    }
+  }
+  sel.innerHTML = `<option value="">-</option>` + nums.map((n) => `<option value="${n}">${n}</option>`).join("");
+  sel.value = nums.includes(+keep) ? String(keep) : "";
+}
+$("selG").onchange = fillNumbers; $("selC").onchange = fillNumbers;
+fillNumbers();
 $("nick").value = ls.getItem("nick") || "";
 
 const isRoster = () => settings && settings.mode === "event" && settings.joinType === "roster";
 function renderJoinForm() {
   const ev = settings && settings.mode === "event", ro = isRoster();
   $("joinEvent").classList.toggle("hidden", !ev || ro);
+  $("joinSName").classList.toggle("hidden", !nameCheckOn());
   $("joinRoster").classList.toggle("hidden", !ro);
   $("joinPractice").classList.toggle("hidden", ev);
-  $("joinTitle").textContent = ro ? "이름을 입력하세요" : ev ? "학번을 선택하세요" : "닉네임을 입력하세요";
+  // 참여 대상 학년/반 제한
+  if (ev && !ro) {
+    const lockG = settings.onlyGrade || 0, lockC = settings.onlyClass || 0;
+    for (const [id, lock] of [["selG", lockG], ["selC", lockC]]) {
+      const el = $(id);
+      if (lock) { el.value = String(lock); el.disabled = true; } else el.disabled = false;
+    }
+    fillNumbers();
+  }
+  $("joinTitle").textContent = ro ? "이름을 입력하세요" : nameCheckOn() ? "학번과 이름을 입력하세요" : ev ? "학번을 선택하세요" : "닉네임을 입력하세요";
   $("joinHint").textContent = ro
     ? (settings.oneTry ? "한 분당 한 번만 할 수 있어요. 미리 안내받은 이름 그대로 입력해 주세요." : "지금은 여러 번 참여할 수 있어요.")
+    : nameCheckOn()
+    ? (targetText(settings) ? `지금은 ${targetText(settings)}만 참여할 수 있어요. ` : "") + "내 학번과 이름이 명렬표와 맞아야 참여할 수 있어요. 한 사람당 한 번!"
+    : ev && targetText(settings)
+    ? `지금은 ${targetText(settings)}만 참여할 수 있어요. 한 사람당 한 번!`
     : ev
     ? (settings.oneTry ? "한 사람당 한 번만 할 수 있어요. 친구 학번으로 하면 그 친구의 기회가 사라져요!" : "지금은 여러 번 참여할 수 있어요.")
     : "연습 모드예요. 몇 번이든 할 수 있어요!";
@@ -79,6 +117,15 @@ async function join() {
         if (!g || !c || !n) { setMsg("학년, 반, 번호를 모두 골라 주세요"); return; }
         ls.setItem("lastSel", JSON.stringify({ g, c, n }));
         gid = gidOf(g, c, n);
+        if (nameCheckOn()) {
+          // 명렬표의 학번 + 이름이 둘 다 맞아야 참여
+          const nm = $("sname").value.trim();
+          if (!nm) { setMsg("이름을 입력해 주세요"); return; }
+          const saved = (await get(r(`students/${classKey(g, c)}/${numKey(n)}`))).val();
+          if (!saved) { setMsg("명렬표에 없는 학번이에요"); return; }
+          if (saved !== (await nameHash(nm))) { setMsg("학번과 이름이 맞지 않아요"); return; }
+        } else if (!classNumbers(classes, g, c).includes(+n)) { setMsg("이 번호는 참여 명단에 없어요"); return; }
+        if (!gidAllowed(settings, gid)) { setMsg(`지금은 ${targetText(settings)}만 참여할 수 있어요`); return; }
       }
       info = { key: "S" + gid, label: labelOf(gid), gid, mode: "event" };
       if (settings.oneTry) {
@@ -289,6 +336,7 @@ watch("lanes", (v) => {
 });
 watch("queue", (v) => { queue = v || {}; sync(); });
 watch("stock", (v) => { stock = v; sync(); });
+watch("classes", (v) => { classes = v || {}; if (ui === "join") fillNumbers(); });
 watch(".info/connected", (v) => {
   const was = connected; connected = !!v;
   // 화면이 꺼졌다 켜져서 다시 연결되면, 원래 순서 그대로 대기열에 복귀

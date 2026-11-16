@@ -36,7 +36,48 @@ export const DEFAULT_SETTINGS = {
   controlSec: 10,          // 조종 제한 시간(초)
   practiceDeplete: false,  // 연습 모드에서도 재고를 줄일지
   joinType: "student",     // 본 행사 참여 방식: "student"(학번) | "roster"(이름 명단)
+  onlyGrade: 0,            // 참여 학년 제한 (0 = 전체)
+  onlyClass: 0,            // 참여 반 제한 (0 = 전체)
+  nameCheck: false,        // 학번 + 이름 확인 (학생 명렬표 필요)
 };
+
+/**
+ * 학생 명렬표: students["2-03"]["07"] = 이름 암호값
+ * 이름을 그대로 저장하지 않고 암호값(해시)만 저장해서, 누가 데이터를 들여다봐도 이름은 안 보여요.
+ */
+export const classKey = (g, c) => `${g}-${String(c).padStart(2, "0")}`;
+// 번호 키 앞에 n을 붙임 (숫자만 있는 키는 Firebase가 배열로 바꿔버릴 수 있어서)
+export const numKey = (n) => "n" + String(n).padStart(2, "0");
+export async function nameHash(name) {
+  const data = new TextEncoder().encode("ai-ppobgi|" + String(name || "").replace(/\s+/g, ""));
+  const h = await crypto.subtle.digest("SHA-256", data);
+  return [...new Uint8Array(h)].slice(0, 10).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/** 반별 인원 설정: classes["2-3"] = { max: 28, skip: "7, 15" } (없으면 1~35번) */
+export const MAX_NUM = 35;
+export function classNumbers(classes, g, c) {
+  const cf = (classes && classes[`${g}-${c}`]) || {};
+  const max = Math.max(1, Math.min(MAX_NUM, cf.max || MAX_NUM));
+  const skip = new Set(String(cf.skip || "").split(/[^0-9]+/).filter(Boolean).map(Number));
+  return Array.from({ length: max }, (_, i) => i + 1).filter((n) => !skip.has(n));
+}
+
+/** 학번 참여일 때 이 학번이 지금 참여 대상인지 (학년·반 제한 + 반별 인원/빼는 번호) */
+export function gidAllowed(settings, gid, classes) {
+  if (!settings || !gid || gid.startsWith("T_")) return true;
+  const [g, c, n] = gid.split("-").map(Number);
+  if (settings.onlyGrade && g !== settings.onlyGrade) return false;
+  if (settings.onlyClass && c !== settings.onlyClass) return false;
+  if (classes !== undefined && !classNumbers(classes, g, c).includes(n)) return false;
+  return true;
+}
+export function targetText(settings) {
+  if (!settings || (!settings.onlyGrade && !settings.onlyClass)) return "";
+  const g = settings.onlyGrade ? settings.onlyGrade + "학년" : "전 학년";
+  const c = settings.onlyClass ? " " + settings.onlyClass + "반" : "";
+  return g + c;
+}
 
 export const DEFAULT_STOCK = {
   event: {

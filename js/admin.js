@@ -2,13 +2,14 @@
 import {
   r, watch, get, set, update, remove, runTransaction,
   ensureDefaults, RANKS, RANK_COLORS, LANE_IDS, LANE_INFO, gidOf, labelOf, safeStore, escapeHtml,
-  activeRanks, isLose, rankText, nameKey, tidOf
+  activeRanks, isLose, rankText, nameKey, tidOf, classNumbers, MAX_NUM, classKey, nameHash, pad2, numKey
 } from "./db.js";
 import { ADMIN_PIN } from "./firebase-config.js";
 
 const $ = (id) => document.getElementById(id);
 const ss = safeStore("sessionStorage");
 let settings = null, stock = null, logs = {}, queue = {}, lanes = {}, roster = {}, rosterDirty = false;
+let classes = {}, clsDirty = false, clsGrade = 1;
 let stockTab = "event", logTab = "event", stockDirty = false;
 
 function flash(id, text, err = false) {
@@ -36,6 +37,8 @@ async function start() {
   watch("queue", (v) => { queue = v || {}; renderQueue(); });
   watch("lanes", (v) => { lanes = v || {}; renderQueue(); });
   watch("roster", (v) => { roster = v || {}; if (!rosterDirty) renderRoster(); });
+  watch("classes", (v) => { classes = v || {}; if (!clsDirty) renderCls(); });
+  watch("students", (v) => renderStuStatus(v || {}));
 }
 
 // ---------- 설정 ----------
@@ -43,6 +46,9 @@ function renderSettings() {
   if (!settings) return;
   document.querySelectorAll(".mode-btn").forEach((b) => b.classList.toggle("on", b.dataset.mode === settings.mode));
   $("oneTry").checked = !!settings.oneTry;
+  $("nameCheck").checked = !!settings.nameCheck;
+  $("onlyGrade").value = String(settings.onlyGrade || 0);
+  $("onlyClass").value = String(settings.onlyClass || 0);
   document.querySelectorAll('input[name="joinType"]').forEach((x) => { x.checked = x.value === (settings.joinType || "student"); });
   $("practiceDeplete").checked = !!settings.practiceDeplete;
   if (document.activeElement !== $("controlSec")) $("controlSec").value = settings.controlSec;
@@ -62,7 +68,9 @@ document.querySelectorAll(".mode-btn").forEach((b) => {
 $("saveSettings").onclick = async () => {
   const sec = Math.max(3, Math.min(60, parseInt($("controlSec").value, 10) || 10));
   const jt = (document.querySelector('input[name="joinType"]:checked') || {}).value || "student";
-  const ups = { oneTry: $("oneTry").checked, practiceDeplete: $("practiceDeplete").checked, controlSec: sec, joinType: jt };
+  const ups = { oneTry: $("oneTry").checked, practiceDeplete: $("practiceDeplete").checked, controlSec: sec, joinType: jt,
+    onlyGrade: +$("onlyGrade").value || 0, onlyClass: +$("onlyClass").value || 0, nameCheck: $("nameCheck").checked };
+  if (ups.nameCheck && !stuCount) alert("학생 명렬표가 아직 없어요. 아래 '학생 명렬표'에 파일을 올리고 저장해 주세요. 그 전까지는 아무도 참여할 수 없어요.");
   if (settings && jt !== settings.joinType && settings.mode === "event") {
     if (!confirm("참여 방식을 바꾸면 지금 대기열이 비워져요. 바꿀까요?")) return;
     await remove(r("queue"));
@@ -71,6 +79,8 @@ $("saveSettings").onclick = async () => {
   await update(r("settings"), ups);
   flash("setMsg", "저장했어요");
 };
+
+$("onlyClass").innerHTML = `<option value="0">전체 반</option>` + Array.from({ length: 13 }, (_, i) => `<option value="${i + 1}">${i + 1}반</option>`).join("");
 
 // ---------- 재고 ----------
 function renderStock() {
@@ -265,4 +275,139 @@ $("saveRoster").onclick = async () => {
   await set(r("roster"), Object.keys(map).length ? map : null);
   rosterDirty = false; renderRoster();
   flash("rosterMsg", "저장했어요");
+};
+
+// ---------- 반별 인원 ----------
+function renderCls() {
+  const g = clsGrade;
+  $("clsBody").innerHTML = Array.from({ length: 13 }, (_, i) => {
+    const c = i + 1, cf = classes[`${g}-${c}`] || {};
+    return `<tr data-c="${c}"><td>${g}-${c}</td>
+      <td><input type="number" min="1" max="${MAX_NUM}" data-f="max" value="${cf.max || MAX_NUM}"></td>
+      <td><input type="text" data-f="skip" value="${escapeHtml(cf.skip || "")}" placeholder="없음"></td>
+      <td>${classNumbers(classes, g, c).length}명</td></tr>`;
+  }).join("");
+  $("clsBody").querySelectorAll("input").forEach((x) => x.oninput = () => { clsDirty = true; });
+}
+document.querySelectorAll("#clsTabs .tab").forEach((t) => t.onclick = () => {
+  if (clsDirty && !confirm("저장하지 않은 변경이 있어요. 버릴까요?")) return;
+  clsDirty = false; clsGrade = +t.dataset.g;
+  document.querySelectorAll("#clsTabs .tab").forEach((x) => x.classList.toggle("on", x === t));
+  renderCls();
+});
+$("saveCls").onclick = async () => {
+  const ups = {};
+  $("clsBody").querySelectorAll("tr").forEach((tr) => {
+    const c = tr.dataset.c;
+    const max = Math.max(1, Math.min(MAX_NUM, parseInt(tr.querySelector("[data-f=max]").value, 10) || MAX_NUM));
+    const skip = tr.querySelector("[data-f=skip]").value.split(/[^0-9]+/).filter(Boolean).map(Number)
+      .filter((n) => n >= 1 && n <= max).sort((a, b) => a - b).join(", ");
+    ups[`classes/${clsGrade}-${c}`] = max === MAX_NUM && !skip ? null : { max, skip };
+  });
+  await update(r(), ups);
+  clsDirty = false; renderCls();
+  flash("clsMsg", clsGrade + "학년 저장했어요");
+};
+renderCls();
+
+// ---------- 학생 명렬표 ----------
+let stuParsed = null, stuCount = 0;
+function renderStuStatus(v) {
+  const per = { 1: 0, 2: 0, 3: 0 };
+  let tot = 0;
+  for (const [ck, nums] of Object.entries(v)) { const n = Object.keys(nums || {}).length; per[ck[0]] = (per[ck[0]] || 0) + n; tot += n; }
+  stuCount = tot;
+  $("stuStatus").textContent = tot ? `저장된 명렬표: ${tot}명 (1학년 ${per[1]}명 · 2학년 ${per[2]}명 · 3학년 ${per[3]}명)` : "저장된 명렬표가 없어요";
+}
+const cellStr = (x) => String(x ?? "").replace(/\s+/g, "");
+const toInt = (x) => parseInt(String(x ?? "").replace(/[^0-9]/g, ""), 10);
+function parseSheet(rows) {
+  let h = -1, ci = {};
+  for (let i = 0; i < Math.min(rows.length, 20); i++) {
+    const rr = (rows[i] || []).map(cellStr);
+    const idx = (re) => rr.findIndex((x) => re.test(x));
+    const name = idx(/^(이름|성명|학생명|학생이름)$/);
+    if (name >= 0) { h = i; ci = { name, hak: idx(/^학번$/), g: idx(/^학년$/), c: idx(/^반$/), n: idx(/^(번호|번)$/) }; break; }
+  }
+  if (h < 0) return { list: [], bad: [], noHeader: true };
+  const list = [], bad = [];
+  for (let i = h + 1; i < rows.length; i++) {
+    const row = rows[i] || [];
+    const name = String(row[ci.name] ?? "").trim();
+    if (!name) continue;
+    let g, c, n;
+    if (ci.g >= 0 && ci.c >= 0 && ci.n >= 0) { g = toInt(row[ci.g]); c = toInt(row[ci.c]); n = toInt(row[ci.n]); }
+    else if (ci.hak >= 0) {
+      const d = String(row[ci.hak] ?? "").replace(/[^0-9]/g, "");
+      if (d.length === 5) { g = +d[0]; c = +d.slice(1, 3); n = +d.slice(3); }
+      else if (d.length === 4) { g = +d[0]; c = +d[1]; n = +d.slice(2); }
+    }
+    if (!(g >= 1 && g <= 3 && c >= 1 && c <= 13 && n >= 1 && n <= 40)) { bad.push(`${i + 1}번째 줄 (${name})`); continue; }
+    list.push({ g, c, n, name });
+  }
+  return { list, bad };
+}
+$("stuFile").onchange = async (e) => {
+  const f = e.target.files[0];
+  stuParsed = null; $("stuSave").disabled = true; $("stuPreview").innerHTML = "";
+  if (!f) return;
+  if (!window.XLSX) { $("stuPreview").innerHTML = `<span class="err">엑셀 읽기 도구를 불러오지 못했어요. 인터넷 연결을 확인해 주세요.</span>`; return; }
+  try {
+    const buf = await f.arrayBuffer();
+    let wb;
+    if (/\.csv$/i.test(f.name)) {
+      // 한글 엑셀에서 저장한 CSV(EUC-KR)도 읽을 수 있게
+      let text;
+      try { text = new TextDecoder("utf-8", { fatal: true }).decode(buf); }
+      catch (_) { text = new TextDecoder("euc-kr").decode(buf); }
+      wb = XLSX.read(text.replace(/^\uFEFF/, ""), { type: "string" });
+    } else wb = XLSX.read(buf, { type: "array" });
+    let list = [], bad = [], headerFound = false;
+    for (const sn of wb.SheetNames) {
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, raw: false, defval: "" });
+      const res = parseSheet(rows);
+      if (!res.noHeader) headerFound = true;
+      list = list.concat(res.list); bad = bad.concat(res.bad.map((b) => (wb.SheetNames.length > 1 ? `[${sn}] ` : "") + b));
+    }
+    if (!headerFound) { $("stuPreview").innerHTML = `<span class="err">첫 줄에서 '이름'(또는 '성명') 칸을 찾지 못했어요. 양식을 내려받아 맞춰 주세요.</span>`; return; }
+    const seen = new Map(), dup = [];
+    for (const s of list) { const k = `${s.g}-${s.c}-${s.n}`; if (seen.has(k)) dup.push(`${s.g}학년 ${s.c}반 ${s.n}번`); seen.set(k, s); }
+    const per = [1, 2, 3].map((g) => list.filter((s) => s.g === g).length);
+    $("stuPreview").innerHTML =
+      `<b>${list.length}명</b>을 읽었어요 (1학년 ${per[0]} · 2학년 ${per[1]} · 3학년 ${per[2]})` +
+      (bad.length ? `<div class="err">학번을 읽지 못한 줄 ${bad.length}개: ${escapeHtml(bad.slice(0, 8).join(", "))}${bad.length > 8 ? " …" : ""}</div>` : "") +
+      (dup.length ? `<div class="err">학번이 겹치는 학생: ${escapeHtml(dup.slice(0, 8).join(", "))} (뒤에 나온 이름으로 저장돼요)</div>` : "") +
+      `<table class="tbl"><thead><tr><th>학번</th><th>이름</th></tr></thead><tbody>` +
+      list.slice(0, 6).map((s) => `<tr><td>${s.g}학년 ${s.c}반 ${s.n}번</td><td>${escapeHtml(s.name)}</td></tr>`).join("") +
+      (list.length > 6 ? `<tr><td colspan="2" style="color:var(--muted)">… 외 ${list.length - 6}명</td></tr>` : "") + `</tbody></table>`;
+    stuParsed = [...seen.values()];
+    $("stuSave").disabled = !stuParsed.length;
+  } catch (err) {
+    console.error(err);
+    $("stuPreview").innerHTML = `<span class="err">파일을 읽지 못했어요: ${escapeHtml(err.message || err)}</span>`;
+  }
+};
+$("stuSave").onclick = async () => {
+  if (!stuParsed || !stuParsed.length) return;
+  if (!confirm(`명렬표 ${stuParsed.length}명을 저장할까요? (기존 명렬표는 바뀌어요)`)) return;
+  $("stuSave").disabled = true;
+  const tree = {};
+  for (const s of stuParsed) {
+    const ck = classKey(s.g, s.c);
+    (tree[ck] = tree[ck] || {})[numKey(s.n)] = await nameHash(s.name);
+  }
+  await set(r("students"), tree);
+  stuParsed = null; $("stuFile").value = ""; $("stuPreview").innerHTML = "";
+  flash("stuMsg", "저장했어요");
+};
+$("stuClear").onclick = async () => {
+  if (!confirm("저장된 학생 명렬표를 모두 지울까요?")) return;
+  await remove(r("students"));
+  flash("stuMsg", "지웠어요");
+};
+$("stuTemplate").onclick = () => {
+  const csv = "\uFEFF학번,이름\r\n10101,김개포\r\n10102,이양재\r\n21305,박도곡\r\n";
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+  a.download = "명렬표_양식.csv"; a.click();
 };
