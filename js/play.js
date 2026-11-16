@@ -1,7 +1,8 @@
 // 폰 조종기
 import {
   r, watch, get, set, update, onDisconnect, now,
-  RANK_COLORS, LANE_IDS, LANE_INFO, depletes, leftTotal, gidOf, labelOf, LOSE_LINES, safeStore, escapeHtml
+  RANK_COLORS, LANE_IDS, LANE_INFO, depletes, leftTotal, gidOf, labelOf, LOSE_LINES, safeStore, escapeHtml,
+  isLose, rankText, nameKey, tidOf
 } from "./db.js";
 
 const $ = (id) => document.getElementById(id);
@@ -37,12 +38,16 @@ const lastSel = (() => { try { return JSON.parse(ls.getItem("lastSel") || "null"
 if (lastSel) { $("selG").value = lastSel.g; $("selC").value = lastSel.c; $("selN").value = lastSel.n; }
 $("nick").value = ls.getItem("nick") || "";
 
+const isRoster = () => settings && settings.mode === "event" && settings.joinType === "roster";
 function renderJoinForm() {
-  const ev = settings && settings.mode === "event";
-  $("joinEvent").classList.toggle("hidden", !ev);
+  const ev = settings && settings.mode === "event", ro = isRoster();
+  $("joinEvent").classList.toggle("hidden", !ev || ro);
+  $("joinRoster").classList.toggle("hidden", !ro);
   $("joinPractice").classList.toggle("hidden", ev);
-  $("joinTitle").textContent = ev ? "학번을 선택하세요" : "닉네임을 입력하세요";
-  $("joinHint").textContent = ev
+  $("joinTitle").textContent = ro ? "이름을 입력하세요" : ev ? "학번을 선택하세요" : "닉네임을 입력하세요";
+  $("joinHint").textContent = ro
+    ? (settings.oneTry ? "한 분당 한 번만 할 수 있어요. 미리 안내받은 이름 그대로 입력해 주세요." : "지금은 여러 번 참여할 수 있어요.")
+    : ev
     ? (settings.oneTry ? "한 사람당 한 번만 할 수 있어요. 친구 학번으로 하면 그 친구의 기회가 사라져요!" : "지금은 여러 번 참여할 수 있어요.")
     : "연습 모드예요. 몇 번이든 할 수 있어요!";
 }
@@ -61,17 +66,27 @@ async function join() {
   try {
     let info;
     if (settings.mode === "event") {
-      const g = $("selG").value, c = $("selC").value, n = $("selN").value;
-      if (!g || !c || !n) { setMsg("학년, 반, 번호를 모두 골라 주세요"); return; }
-      ls.setItem("lastSel", JSON.stringify({ g, c, n }));
-      const gid = gidOf(g, c, n);
+      let gid;
+      if (isRoster()) {
+        // 이름 명단으로 본인 확인
+        const key = nameKey($("tname").value);
+        if (!key) { setMsg("이름을 입력해 주세요"); return; }
+        const ok = (await get(r("roster/" + key))).exists();
+        if (!ok) { setMsg("명단에 없는 이름이에요. 안내받은 이름을 확인해 주세요."); return; }
+        gid = tidOf(key);
+      } else {
+        const g = $("selG").value, c = $("selC").value, n = $("selN").value;
+        if (!g || !c || !n) { setMsg("학년, 반, 번호를 모두 골라 주세요"); return; }
+        ls.setItem("lastSel", JSON.stringify({ g, c, n }));
+        gid = gidOf(g, c, n);
+      }
       info = { key: "S" + gid, label: labelOf(gid), gid, mode: "event" };
       if (settings.oneTry) {
         const a = (await get(r("attempts/" + gid))).val() || {};
         if ((a.used || 0) >= 1 + (a.bonus || 0)) {
           $("doneWho").textContent = info.label;
           $("doneLast").innerHTML = a.last
-            ? `내 결과: <b style="color:${RANK_COLORS[a.last.rank]}">${a.last.rank === 5 ? "꽝" : a.last.rank + "등"}</b> ${a.last.rank === 5 ? "" : escapeHtml(a.last.prize)}`
+            ? `내 결과: <b style="color:${RANK_COLORS[isLose(a.last.prize) ? 5 : a.last.rank]}">${rankText(a.last.rank, a.last.prize)}</b> ${isLose(a.last.prize) ? "" : escapeHtml(a.last.prize)}`
             : "";
           return show("done");
         }
@@ -83,7 +98,7 @@ async function join() {
       info = { key: "P" + CLIENT, label: nick, gid: null, mode: "practice" };
     }
     if ((queue && queue[info.key]) || LANE_IDS.some((id) => lanes[id] && lanes[id].qkey === info.key)) {
-      setMsg(settings.mode === "event" ? "이 학번은 이미 대기 중이에요" : "이미 대기 중이에요");
+      setMsg(isRoster() ? "이 이름은 이미 대기 중이에요" : settings.mode === "event" ? "이 학번은 이미 대기 중이에요" : "이미 대기 중이에요");
       return;
     }
     me = { ...info, joinedAt: now() };
@@ -177,15 +192,19 @@ function startTurnUI() {
 async function showResult(res) {
   lastResult = res;
   show("result");
-  const color = RANK_COLORS[res.rank] || "#9aa0b4";
+  const lose = isLose(res.prize);
+  const color = RANK_COLORS[lose ? 5 : res.rank] || "#9aa0b4";
   $("resCard").style.setProperty("--c", color);
   $("resWho").textContent = me ? me.label : "";
   if (res.rank === 0) { $("resRank").textContent = "SOLD OUT"; $("resPrize").textContent = "캡슐이 모두 소진되었어요"; }
-  else if (res.rank === 5) { $("resRank").textContent = "꽝!"; $("resPrize").textContent = LOSE_LINES[(Math.random() * LOSE_LINES.length) | 0]; }
+  else if (lose) { $("resRank").textContent = "꽝!"; $("resPrize").textContent = LOSE_LINES[(Math.random() * LOSE_LINES.length) | 0]; }
   else { $("resRank").textContent = res.rank + "등!"; $("resPrize").textContent = res.prize; }
   const isEvent = me && me.mode === "event";
-  $("resNote").textContent = isEvent && res.rank >= 1 && res.rank <= 4 ? "이 화면을 선생님께 보여주세요!" : isEvent ? "참여해 줘서 고마워요!" : "연습 모드 결과예요";
-  navigator.vibrate?.(res.rank === 1 ? [300, 100, 300, 100, 600] : [150]);
+  const teacher = me && me.gid && me.gid.startsWith("T_");
+  $("resNote").textContent = isEvent && res.rank >= 1 && !lose
+    ? (teacher ? "상품 받는 곳에 이 화면을 보여주세요!" : "이 화면을 선생님께 보여주세요!")
+    : isEvent ? "참여해 주셔서 고마워요!" : "연습 모드 결과예요";
+  navigator.vibrate?.(res.rank === 1 && !lose ? [300, 100, 300, 100, 600] : [150]);
   const clock = () => {
     const d = new Date();
     $("resClock").textContent = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:${String(d.getSeconds()).padStart(2, "0")}`;

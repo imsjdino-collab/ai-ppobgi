@@ -4,12 +4,18 @@ const VOLUME = 1.6;
 const MUSIC = 1.6;  // 배경음 크기
 
 let ctx = null, master = null, sfx = null, music = null, bgmTimer = null, step = 0;
+let noiseBuf = null, nextNote = 0;
+const AHEAD = 0.03;   // 소리를 아주 살짝 앞당겨 예약해서, 화면이 바쁠 때도 끊기지 않게
 
 function init() {
   if (ctx) return;
   const AC = window.AudioContext || window.webkitAudioContext;
   if (!AC) return;
-  ctx = new AC();
+  try { ctx = new AC({ latencyHint: "playback" }); } catch (e) { ctx = new AC(); }
+  // 잡음 소리는 미리 한 번만 만들어 두고 재사용
+  noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+  const nd = noiseBuf.getChannelData(0);
+  for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
   // 소리를 크게 키우되, 찢어지지 않도록 압축기를 거쳐서 내보냄
   const comp = ctx.createDynamicsCompressor();
   comp.threshold.value = -14; comp.knee.value = 10; comp.ratio.value = 6;
@@ -22,7 +28,7 @@ function init() {
 
 function tone(freq, dur, o = {}) {
   if (!ctx) return;
-  const t = ctx.currentTime + (o.at || 0);
+  const t = o.when ?? ctx.currentTime + AHEAD + (o.at || 0);
   const osc = ctx.createOscillator();
   const g = ctx.createGain();
   osc.type = o.type || "square";
@@ -38,17 +44,14 @@ function tone(freq, dur, o = {}) {
 
 function noise(dur, o = {}) {
   if (!ctx) return;
-  const t = ctx.currentTime + (o.at || 0);
-  const buf = ctx.createBuffer(1, Math.max(1, ctx.sampleRate * dur), ctx.sampleRate);
-  const d = buf.getChannelData(0);
-  for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
-  const src = ctx.createBufferSource(); src.buffer = buf;
+  const t = ctx.currentTime + AHEAD + (o.at || 0);
+  const src = ctx.createBufferSource(); src.buffer = noiseBuf;
   const f = ctx.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = o.freq || 1200;
   const g = ctx.createGain();
   g.gain.setValueAtTime(o.vol ?? 0.2, t);
   g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
   src.connect(f); f.connect(g); g.connect(sfx);
-  src.start(t); src.stop(t + dur + 0.02);
+  src.start(t, Math.random() * (2 - dur - 0.05)); src.stop(t + dur + 0.02);
 }
 
 const N = (n) => 440 * Math.pow(2, (n - 69) / 12); // MIDI → Hz
@@ -64,12 +67,20 @@ export const Sound = {
     if (!ctx) return;
     clearInterval(bgmTimer); bgmTimer = null;
     if (!on) return;
-    bgmTimer = setInterval(() => {
-      const n = BGM[step % BGM.length];
-      tone(N(n + 12), 0.12, { type: "triangle", vol: 0.05, dest: music });
-      if (step % 4 === 0) tone(N(BGM[step % BGM.length] - 12), 0.25, { type: "square", vol: 0.035, dest: music });
-      step++;
-    }, 140);
+    // 박자를 오디오 시계 기준으로 0.3초 앞까지 미리 예약 → 화면이 잠깐 멈춰도 음악이 안 끊김
+    const STEP = 0.14;
+    nextNote = ctx.currentTime + 0.1;
+    const pump = () => {
+      if (nextNote < ctx.currentTime) nextNote = ctx.currentTime + 0.05;
+      while (nextNote < ctx.currentTime + 0.3) {
+        const n = BGM[step % BGM.length];
+        tone(N(n + 12), 0.12, { type: "triangle", vol: 0.05, dest: music, when: nextNote });
+        if (step % 4 === 0) tone(N(n - 12), 0.25, { type: "square", vol: 0.035, dest: music, when: nextNote });
+        step++; nextNote += STEP;
+      }
+    };
+    pump();
+    bgmTimer = setInterval(pump, 50);
   },
   duck(on) { if (music) music.gain.setTargetAtTime(on ? MUSIC * 0.3 : MUSIC, ctx.currentTime, 0.2); },
 

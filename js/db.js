@@ -35,6 +35,7 @@ export const DEFAULT_SETTINGS = {
   oneTry: true,            // 본 행사: 학번당 1회 제한
   controlSec: 10,          // 조종 제한 시간(초)
   practiceDeplete: false,  // 연습 모드에서도 재고를 줄일지
+  joinType: "student",     // 본 행사 참여 방식: "student"(학번) | "roster"(이름 명단)
 };
 
 export const DEFAULT_STOCK = {
@@ -71,9 +72,23 @@ export async function ensureDefaults() {
   if (Object.keys(ups).length) await update(r(), ups);
 }
 
+/** 사용하는 등수 목록 (등수 개수 3~5개 설정에 따라) */
+export function activeRanks(stockOfMode) {
+  const n = Math.max(3, Math.min(5, (stockOfMode && stockOfMode.count) || 5));
+  return RANKS.slice(0, n);
+}
+/** 상품 이름이 "꽝"이면 꽝으로 처리 */
+export const isLose = (prize) => String(prize || "").trim() === "꽝";
+export const rankText = (rank, prize) => (rank === 0 ? "소진" : isLose(prize) ? "꽝" : rank + "등");
+
+/** 이름 명단: 띄어쓰기와 Firebase에 못 쓰는 기호를 빼고 비교 */
+export const nameKey = (n) => String(n || "").replace(/\s+/g, "").replace(/[.#$\[\]\/]/g, "");
+export const tidOf = (name) => "T_" + nameKey(name);
+
 export const pad2 = (n) => String(n).padStart(2, "0");
 export const gidOf = (g, c, n) => `${g}-${pad2(c)}-${pad2(n)}`;
 export function labelOf(gid) {
+  if (gid.startsWith("T_")) return gid.slice(2);
   const [g, c, n] = gid.split("-").map(Number);
   return `${g}학년 ${c}반 ${n}번`;
 }
@@ -84,7 +99,7 @@ export const depletes = (settings, mode) =>
 
 export function leftTotal(stockOfMode) {
   if (!stockOfMode) return 0;
-  return RANKS.reduce((a, k) => a + Math.max(0, (stockOfMode[k] && stockOfMode[k].left) || 0), 0);
+  return activeRanks(stockOfMode).reduce((a, k) => a + Math.max(0, (stockOfMode[k] && stockOfMode[k].left) || 0), 0);
 }
 
 export const LOSE_LINES = [

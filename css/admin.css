@@ -44,3 +44,9 @@ body { background: radial-gradient(ellipse at 50% -10%, rgba(34,228,255,.12), tr
 @media (max-width: 600px) { .mode-switch { grid-template-columns: 1fr; } .tbl { font-size: 12px; } }
 .lane-line { padding: 6px 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .lane-line .btn { font-size: 12px; padding: 3px 10px; }
+textarea { width: 100%; font-family: var(--pixel); font-size: 15px; color: var(--text); background: #0e0a20; border: 2px solid var(--line); border-radius: 10px; padding: 10px 12px; outline: none; resize: vertical; }
+textarea:focus { border-color: var(--cyan); }
+.note { color: var(--muted); font-size: 14px; line-height: 1.6; margin: 0 0 10px; }
+.muted-s { color: var(--muted); font-size: 13px; }
+.join-type span:first-child { color: var(--cyan); }
+.tbl tr.off { display: none; }

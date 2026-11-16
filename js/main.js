@@ -1,7 +1,8 @@
 // 메인 화면: 뽑기 기계(집게 2개, 2명 동시) + 게임 진행(대기열, 타이머, 추첨)을 맡는 "호스트"
 import {
   r, watch, get, set, update, runTransaction, push, now,
-  ensureDefaults, RANKS, RANK_COLORS, LANE_IDS, LANE_INFO, depletes, leftTotal, LOSE_LINES, safeStore, escapeHtml
+  ensureDefaults, RANKS, RANK_COLORS, LANE_IDS, LANE_INFO, depletes, leftTotal, LOSE_LINES, safeStore, escapeHtml,
+  activeRanks, isLose
 } from "./db.js";
 import { Sound } from "./sound.js";
 
@@ -103,19 +104,35 @@ function buildPile() {
 }
 
 // ---------- 그리기 ----------
+// 캡슐 그림은 색깔별로 한 번만 그려 두고 복사해서 씀 (학교 PC에서도 부드럽게)
+const spriteCache = new Map();
+function capsuleSprite(rad, color) {
+  const key = color + "|" + Math.round(rad * DPR);
+  let sp = spriteCache.get(key);
+  if (sp) return sp;
+  const pad = rad * 0.7, size = (rad + pad) * 2;
+  const c = document.createElement("canvas");
+  c.width = Math.ceil(size * DPR); c.height = Math.ceil(size * DPR);
+  const g = c.getContext("2d");
+  g.scale(DPR, DPR); g.translate(size / 2, size / 2);
+  g.shadowColor = color; g.shadowBlur = rad * 0.6;
+  g.beginPath(); g.arc(0, 0, rad, Math.PI, 0); g.closePath(); g.fillStyle = color; g.fill();
+  g.shadowBlur = 0;
+  g.beginPath(); g.arc(0, 0, rad, 0, Math.PI); g.closePath(); g.fillStyle = "rgba(230,225,255,0.85)"; g.fill();
+  g.fillStyle = "rgba(0,0,0,0.35)"; g.fillRect(-rad, -rad * 0.06, rad * 2, rad * 0.12);
+  g.beginPath(); g.arc(-rad * 0.35, -rad * 0.45, rad * 0.22, 0, Math.PI * 2);
+  g.fillStyle = "rgba(255,255,255,0.55)"; g.fill();
+  sp = { c, size };
+  if (spriteCache.size > 64) spriteCache.clear();
+  spriteCache.set(key, sp);
+  return sp;
+}
 function drawCapsule(px, py, rad, color, rot, alpha = 1) {
+  const sp = capsuleSprite(rad, color);
   cx.save();
   cx.globalAlpha = alpha;
   cx.translate(px, py); cx.rotate(rot);
-  cx.shadowColor = color; cx.shadowBlur = rad * 0.6;
-  cx.beginPath(); cx.arc(0, 0, rad, Math.PI, 0); cx.closePath();
-  cx.fillStyle = color; cx.fill();
-  cx.shadowBlur = 0;
-  cx.beginPath(); cx.arc(0, 0, rad, 0, Math.PI); cx.closePath();
-  cx.fillStyle = "rgba(230,225,255,0.85)"; cx.fill();
-  cx.fillStyle = "rgba(0,0,0,0.35)"; cx.fillRect(-rad, -rad * 0.06, rad * 2, rad * 0.12);
-  cx.beginPath(); cx.arc(-rad * 0.35, -rad * 0.45, rad * 0.22, 0, Math.PI * 2);
-  cx.fillStyle = "rgba(255,255,255,0.55)"; cx.fill();
+  cx.drawImage(sp.c, -sp.size / 2, -sp.size / 2, sp.size, sp.size);
   cx.restore();
 }
 
@@ -287,10 +304,12 @@ function renderStock() {
   const bar = $("stockBar");
   const prev = bar._prev || {};
   const showLeft = depletes(settings, m);
-  bar.innerHTML = RANKS.map((k, i) => {
+  const act = activeRanks(s);
+  bar.style.setProperty("--n", act.length);
+  bar.innerHTML = act.map((k, i) => {
     const it = s[k] || { name: "-", left: 0, total: 0 };
     const rank = i + 1;
-    return `<div class="stock r${rank}${showLeft && it.left <= 0 ? " zero" : ""}${prev[k] !== undefined && prev[k] !== it.left ? " bump" : ""}" style="--c:${RANK_COLORS[rank]}">
+    return `<div class="stock r${rank}${showLeft && it.left <= 0 ? " zero" : ""}${prev[k] !== undefined && prev[k] !== it.left ? " bump" : ""}" style="--c:${RANK_COLORS[isLose(it.name) ? 5 : rank]}">
       <div class="rk">${rank}등</div>
       <div class="nm">${escapeHtml(it.name)}</div>
       <div class="lf">${showLeft ? `<b>${it.left}</b><small> / ${it.total}</small>` : `<small>연습용</small>`}</div>
@@ -306,7 +325,8 @@ function renderMode() {
   b.className = "mode-badge " + settings.mode;
   b.textContent = settings.mode === "event" ? "★ 본 행사" : "연습 모드";
   $("howSec").textContent = settings.controlSec;
-  $("howStep2").textContent = settings.mode === "event" ? "학번을 입력해요" : "닉네임을 입력해요";
+  $("howStep2").textContent = settings.mode !== "event" ? "닉네임을 입력해요"
+    : settings.joinType === "roster" ? "이름을 입력해요" : "학번을 입력해요";
 }
 
 function sortedQueue() {
@@ -411,20 +431,22 @@ function onLanes(v) {
 
 async function drawPrize(mode) {
   const s = (stock && stock[mode]) || {};
+  const act = activeRanks(s), lastK = act[act.length - 1];
   if (!depletes(settings, mode)) {
-    const tot = RANKS.reduce((a, k) => a + ((s[k] && s[k].total) || 0), 0);
-    if (tot <= 0) return { rank: 5, prize: (s.r5 && s.r5.name) || "꽝" };
+    const tot = act.reduce((a, k) => a + ((s[k] && s[k].total) || 0), 0);
+    if (tot <= 0) return { rank: act.length, prize: (s[lastK] && s[lastK].name) || "꽝" };
     let x = Math.random() * tot;
-    for (let i = 0; i < RANKS.length; i++) {
-      x -= (s[RANKS[i]] && s[RANKS[i]].total) || 0;
-      if (x < 0) return { rank: i + 1, prize: s[RANKS[i]].name };
+    for (let i = 0; i < act.length; i++) {
+      x -= (s[act[i]] && s[act[i]].total) || 0;
+      if (x < 0) return { rank: i + 1, prize: s[act[i]].name };
     }
-    return { rank: 5, prize: s.r5.name };
+    return { rank: act.length, prize: s[lastK].name };
   }
   let chosen = null;
   await runTransaction(r("stock/" + mode), (st) => {
     if (!st) return st;
     chosen = null;
+    const RANKS = activeRanks(st);
     const tot = RANKS.reduce((a, k) => a + Math.max(0, (st[k] && st[k].left) || 0), 0);
     if (tot <= 0) { chosen = { rank: 0, prize: "재고 소진" }; return; }
     let x = Math.random() * tot;
@@ -576,7 +598,9 @@ function chain(run) {
 // ---------- 결과 공개 연출 (구역별 반쪽 화면) ----------
 async function reveal(ln, game, res, capColor) {
   const ov = $("reveal" + ln.id), cap = ov.querySelector(".big-capsule");
-  const color = RANK_COLORS[res.rank] || "#9aa0b4";
+  const lose = isLose(res.prize);
+  const fx = lose ? 5 : res.rank;            // 연출(색·소리)용 등급: 꽝은 항상 꽝 연출
+  const color = RANK_COLORS[fx] || "#9aa0b4";
   ov.className = "reveal side-" + ln.id;
   ov.style.setProperty("--lane", ln.color);
   cap.className = "big-capsule";
@@ -584,7 +608,7 @@ async function reveal(ln, game, res, capColor) {
   ov.querySelector(".reveal-who").innerHTML = `<span style="color:${ln.color}">${ln.tag}</span> ${escapeHtml(game.label)}`;
   const rk = ov.querySelector(".reveal-rank"), pz = ov.querySelector(".reveal-prize");
   if (res.rank === 0) { rk.textContent = "SOLD OUT"; pz.textContent = "캡슐이 모두 소진되었어요"; }
-  else if (res.rank === 5) { rk.textContent = "꽝!"; pz.textContent = LOSE_LINES[(Math.random() * LOSE_LINES.length) | 0]; }
+  else if (isLose(res.prize)) { rk.textContent = "꽝!"; pz.textContent = LOSE_LINES[(Math.random() * LOSE_LINES.length) | 0]; }
   else { rk.textContent = `${res.rank}등!`; pz.textContent = res.prize; }
   rk.style.color = color; rk.style.textShadow = `0 0 20px ${color}, 0 0 60px ${color}`;
   pz.style.color = res.rank === 1 ? "#ffd23f" : "#f2eeff";
@@ -596,9 +620,9 @@ async function reveal(ln, game, res, capColor) {
   // 메인 화면에서 캡슐이 열리는 순간에 폰에도 결과를 보냄
   update(r("lanes/" + ln.id), { state: "result", rank: res.rank, prize: res.prize, at: now() }).catch(console.error);
   cap.classList.add("open");
-  ov.classList.add("shown", "r" + res.rank);
-  Sound.result(res.rank);
-  if (res.rank >= 1 && res.rank <= 3) confetti(ov.querySelector("canvas"), res.rank);
+  ov.classList.add("shown", "r" + fx);
+  Sound.result(fx);
+  if (fx >= 1 && fx <= 3) confetti(ov.querySelector("canvas"), fx);
   await wait(res.rank === 1 ? 4500 : 2500);
   ov.className = "reveal hidden";
 }
