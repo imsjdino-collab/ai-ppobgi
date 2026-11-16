@@ -327,7 +327,7 @@ function parseSheet(rows) {
     const rr = (rows[i] || []).map(cellStr);
     const idx = (re) => rr.findIndex((x) => re.test(x));
     const name = idx(/^(이름|성명|학생명|학생이름)$/);
-    if (name >= 0) { h = i; ci = { name, hak: idx(/^학번$/), g: idx(/^학년$/), c: idx(/^반$/), n: idx(/^(번호|번)$/) }; break; }
+    if (name >= 0) { h = i; ci = { name, hak: idx(/^(학번|학년-?반-?번호)$/), g: idx(/^학년$/), c: idx(/^반$/), n: idx(/^(번호|번)$/) }; break; }
   }
   if (h < 0) return { list: [], bad: [], noHeader: true };
   const list = [], bad = [];
@@ -338,8 +338,11 @@ function parseSheet(rows) {
     let g, c, n;
     if (ci.g >= 0 && ci.c >= 0 && ci.n >= 0) { g = toInt(row[ci.g]); c = toInt(row[ci.c]); n = toInt(row[ci.n]); }
     else if (ci.hak >= 0) {
-      const d = String(row[ci.hak] ?? "").replace(/[^0-9]/g, "");
-      if (d.length === 5) { g = +d[0]; c = +d.slice(1, 3); n = +d.slice(3); }
+      const raw = String(row[ci.hak] ?? "").trim();
+      const parts = raw.split(/[^0-9]+/).filter(Boolean);
+      const d = raw.replace(/[^0-9]/g, "");
+      if (parts.length === 3) { g = +parts[0]; c = +parts[1]; n = +parts[2]; }   // 2-1-1 형식
+      else if (d.length === 5) { g = +d[0]; c = +d.slice(1, 3); n = +d.slice(3); }
       else if (d.length === 4) { g = +d[0]; c = +d[1]; n = +d.slice(2); }
     }
     if (!(g >= 1 && g <= 3 && c >= 1 && c <= 13 && n >= 1 && n <= 40)) { bad.push(`${i + 1}번째 줄 (${name})`); continue; }
