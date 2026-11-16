@@ -1,0 +1,133 @@
+// 효과음: 파일 없이 브라우저에서 직접 합성 (Web Audio)
+// 전체 음량(1 = 기본). 더 크게 하려면 숫자를 올리세요
+const VOLUME = 1.6;
+const MUSIC = 1.6;  // 배경음 크기
+
+let ctx = null, master = null, sfx = null, music = null, bgmTimer = null, step = 0;
+let noiseBuf = null, nextNote = 0;
+const AHEAD = 0.03;   // 소리를 아주 살짝 앞당겨 예약해서, 화면이 바쁠 때도 끊기지 않게
+
+function init() {
+  if (ctx) return;
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return;
+  try { ctx = new AC({ latencyHint: "playback" }); } catch (e) { ctx = new AC(); }
+  // 잡음 소리는 미리 한 번만 만들어 두고 재사용
+  noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+  const nd = noiseBuf.getChannelData(0);
+  for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
+  // 소리를 크게 키우되, 찢어지지 않도록 압축기를 거쳐서 내보냄
+  const comp = ctx.createDynamicsCompressor();
+  comp.threshold.value = -14; comp.knee.value = 10; comp.ratio.value = 6;
+  comp.attack.value = 0.003; comp.release.value = 0.2;
+  comp.connect(ctx.destination);
+  master = ctx.createGain(); master.gain.value = VOLUME; master.connect(comp);
+  sfx = ctx.createGain(); sfx.gain.value = 4; sfx.connect(master);
+  music = ctx.createGain(); music.gain.value = MUSIC; music.connect(master);
+}
+
+function tone(freq, dur, o = {}) {
+  if (!ctx) return;
+  const t = o.when ?? ctx.currentTime + AHEAD + (o.at || 0);
+  const osc = ctx.createOscillator();
+  const g = ctx.createGain();
+  osc.type = o.type || "square";
+  osc.frequency.setValueAtTime(freq, t);
+  if (o.to) osc.frequency.exponentialRampToValueAtTime(o.to, t + dur);
+  const v = o.vol ?? 0.12;
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(v, t + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  osc.connect(g); g.connect(o.dest || sfx);
+  osc.start(t); osc.stop(t + dur + 0.05);
+}
+
+function noise(dur, o = {}) {
+  if (!ctx) return;
+  const t = ctx.currentTime + AHEAD + (o.at || 0);
+  const src = ctx.createBufferSource(); src.buffer = noiseBuf;
+  const f = ctx.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = o.freq || 1200;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(o.vol ?? 0.2, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  src.connect(f); f.connect(g); g.connect(sfx);
+  src.start(t, Math.random() * (2 - dur - 0.05)); src.stop(t + dur + 0.02);
+}
+
+const N = (n) => 440 * Math.pow(2, (n - 69) / 12); // MIDI → Hz
+const BGM = [60, 64, 67, 72, 67, 64, 60, 64, 57, 60, 64, 69, 64, 60, 57, 60,
+             53, 57, 60, 65, 60, 57, 53, 57, 55, 59, 62, 67, 62, 59, 55, 59];
+
+export const Sound = {
+  init,
+  get ready() { return !!ctx; },
+  resume() { if (ctx && ctx.state === "suspended") ctx.resume(); },
+
+  bgm(on) {
+    if (!ctx) return;
+    clearInterval(bgmTimer); bgmTimer = null;
+    if (!on) return;
+    // 박자를 오디오 시계 기준으로 0.3초 앞까지 미리 예약 → 화면이 잠깐 멈춰도 음악이 안 끊김
+    const STEP = 0.14;
+    nextNote = ctx.currentTime + 0.1;
+    const pump = () => {
+      if (nextNote < ctx.currentTime) nextNote = ctx.currentTime + 0.05;
+      while (nextNote < ctx.currentTime + 0.3) {
+        const n = BGM[step % BGM.length];
+        tone(N(n + 12), 0.12, { type: "triangle", vol: 0.05, dest: music, when: nextNote });
+        if (step % 4 === 0) tone(N(n - 12), 0.25, { type: "square", vol: 0.035, dest: music, when: nextNote });
+        step++; nextNote += STEP;
+      }
+    };
+    pump();
+    bgmTimer = setInterval(pump, 50);
+  },
+  duck(on) { if (music) music.gain.setTargetAtTime(on ? MUSIC * 0.3 : MUSIC, ctx.currentTime, 0.2); },
+
+  join() { tone(N(76), 0.08, { vol: 0.1 }); tone(N(83), 0.12, { vol: 0.1, at: 0.08 }); },
+  start() { [72, 76, 79, 84].forEach((n, i) => tone(N(n), 0.1, { vol: 0.12, at: i * 0.07 })); },
+  move() { tone(N(84), 0.03, { type: "square", vol: 0.03 }); },
+  beep(last) { tone(last ? N(88) : N(81), last ? 0.35 : 0.12, { vol: 0.15 }); },
+  open() { tone(500, 0.15, { type: "sawtooth", to: 900, vol: 0.06 }); },
+  drop() { tone(700, 1.2, { type: "sawtooth", to: 120, vol: 0.06 }); },
+  clunk() { noise(0.12, { freq: 400, vol: 0.4 }); tone(110, 0.12, { type: "square", vol: 0.15 }); },
+  rise() { tone(140, 1.0, { type: "sawtooth", to: 500, vol: 0.05 }); },
+  plop() { tone(300, 0.25, { type: "sine", to: 80, vol: 0.25 }); noise(0.08, { freq: 900, vol: 0.2, at: 0.2 }); },
+
+  drumroll(sec) {
+    if (!ctx) return;
+    let t = 0, gap = 0.09;
+    while (t < sec) { noise(0.05, { freq: 2500, vol: 0.12 + (t / sec) * 0.2, at: t }); t += gap; gap = Math.max(0.03, gap * 0.95); }
+  },
+  rattle(sec) {
+    if (!ctx) return;
+    for (let t = 0; t < sec; t += 0.045 + Math.random() * 0.04) {
+      noise(0.04, { freq: 1500 + Math.random() * 2500, vol: 0.08 + Math.random() * 0.12, at: t });
+      if (Math.random() < 0.35) tone(600 + Math.random() * 900, 0.05, { type: "triangle", vol: 0.05, at: t });
+    }
+    tone(90, sec, { type: "sawtooth", vol: 0.05 });
+  },
+  crack() { noise(0.25, { freq: 3000, vol: 0.5 }); tone(1200, 0.2, { type: "square", to: 300, vol: 0.1 }); },
+
+  result(rank) {
+    if (!ctx) return;
+    if (rank === 1) {
+      [72, 76, 79, 84, 79, 84, 88].forEach((n, i) => tone(N(n), 0.16, { vol: 0.16, at: i * 0.12 }));
+      [72, 76, 79, 84].forEach((n) => tone(N(n), 1.2, { type: "sawtooth", vol: 0.06, at: 0.9 }));
+      for (let i = 0; i < 6; i++) {
+        tone(650, 0.35, { type: "sawtooth", to: 1300, vol: 0.07, at: 2.1 + i * 0.7 });
+        tone(1300, 0.35, { type: "sawtooth", to: 650, vol: 0.07, at: 2.45 + i * 0.7 });
+      }
+    } else if (rank === 2) {
+      [72, 76, 79, 84, 88].forEach((n, i) => tone(N(n), 0.14, { vol: 0.15, at: i * 0.1 }));
+      tone(N(84), 0.8, { type: "triangle", vol: 0.15, at: 0.55 });
+    } else if (rank === 3) {
+      [67, 72, 76, 79].forEach((n, i) => tone(N(n), 0.14, { vol: 0.14, at: i * 0.1 }));
+    } else if (rank === 4) {
+      [72, 76].forEach((n, i) => tone(N(n), 0.16, { vol: 0.13, at: i * 0.13 }));
+    } else {
+      tone(N(79), 0.25, { type: "square", to: N(55), vol: 0.14 });
+      tone(N(55), 0.4, { type: "triangle", to: N(43), vol: 0.12, at: 0.3 });
+    }
+  },
+};
